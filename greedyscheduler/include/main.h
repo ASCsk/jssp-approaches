@@ -9,7 +9,7 @@ typedef struct
 {
     int job_id;
     int machine_id;
-    int duration;
+    int duration; //time units
     int start_time;
     int end_time;
 } Operation;
@@ -30,5 +30,6 @@ typedef struct
 // Function prototypes
 void load_instance(JobShop *shop);
 void print_instance(const JobShop *shop);
+void naive_schedule(JobShop *shop);
 
 #endif // MAIN_H
