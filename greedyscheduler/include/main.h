@@ -5,8 +5,7 @@
 #define MAX_MACHINES 10
 #define MAX_OPERATIONS 20
 
-typedef struct
-{
+typedef struct {
     int job_id;
     int machine_id;
     int duration; //time units
@@ -14,22 +13,20 @@ typedef struct
     int end_time;
 } Operation;
 
-typedef struct
-{
+typedef struct {
     Operation operations[MAX_MACHINES];
     int num_operations;
 } Job;
 
-typedef struct
-{
+typedef struct {
     Job jobs[MAX_JOBS];
     int num_jobs;
     int num_machines;
 } JobShop;
 
 // Function prototypes
-void load_instance(JobShop *shop);
-void print_instance(const JobShop *shop);
-void naive_schedule(JobShop *shop);
+void load_instance(JobShop* shop);
+void print_instance(const JobShop* shop);
+void naive_schedule(JobShop* shop);
 
 #endif // MAIN_H
