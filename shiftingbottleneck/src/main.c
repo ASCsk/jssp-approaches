@@ -26,13 +26,21 @@ void load_instance(JobShop* shop) {
     shop->jobs[2].operations[2] = (Operation) { 2, 1, 2, -1, -1 };
     shop->jobs[2].num_operations = 3;
 }
+/**
+ * Initializes the machine schedules by setting the number of operations to 0.
+ * Iterate through all machines (0 to num_machines - 1) and set number of operations to 0
+ */
 
 void initialize_machines_schedules(JobShop* shop, MachineSchedule* machines) {
     for (int m = 0; m < shop->num_machines; ++m) {
         machines[m].num_operations = 0;
     }
 }
-
+/**
+ * Assigns operations to the corresponding machine schedules.
+ * Iterate through all jobs (0 to num_jobs - 1) and for each job, iterate through its operations (0 to num_operations - 1).
+ * For each operation, assign it to the corresponding machine schedule based on its machine_id.
+ */
 void assing_operations_to_machines(JobShop* shop, MachineSchedule* machines) {
     for (int j = 0; j < shop->num_jobs; ++j) {
         for (int o = 0; o < shop->jobs[j].num_operations; ++o) {
@@ -42,7 +50,7 @@ void assing_operations_to_machines(JobShop* shop, MachineSchedule* machines) {
     }
 }
 
-void compute_earliest_start_times(JobShop* shop, MachineSchedule* machines, bool scheduled_machines[]) {
+void compute_earliest_start_times(JobShop* shop, MachineSchedule* machines) {
     // Reset all start and end times
     for (int j = 0; j < shop->num_jobs; ++j) {
         for (int o = 0; o < shop->jobs[j].num_operations; ++o) {
@@ -60,61 +68,54 @@ void compute_earliest_start_times(JobShop* shop, MachineSchedule* machines, bool
                 Operation* op = &shop->jobs[j].operations[o];
 
                 int earliest_start = 0;
-
-                // Respect job order: previous op must finish first
+                // Job order constraint
                 if (o > 0) {
                     Operation* prev = &shop->jobs[j].operations[o - 1];
-                    if (prev->end_time == -1) continue; // can't schedule yet
+                    if (prev->end_time == -1) continue;
                     if (prev->end_time > earliest_start)
                         earliest_start = prev->end_time;
                 }
+                // Machine order constraint
+                MachineSchedule* ms = &machines[op->machine_id];
+                for (int idx = 0; idx < ms->num_operations; ++idx) {
+                    if (ms->operations[idx].job_id == op->job_id &&
+                        ms->operations[idx].machine_id == op->machine_id) {
 
-                // Respect machine order if scheduled
-                if (scheduled_machines[op->machine_id]) {
-                    MachineSchedule* ms = &machines[op->machine_id];
+                        if (idx > 0) {
+                            Operation* prev_machine_op = &ms->operations[idx - 1];
 
-                    for (int idx = 0; idx < ms->num_operations; ++idx) {
-                        if (ms->operations[idx].job_id == op->job_id &&
-                            ms->operations[idx].machine_id == op->machine_id) {
-
-                            // if not first op on this machine
-                            if (idx > 0) {
-                                Operation* prev_op = &ms->operations[idx - 1];
-
-                                // find the original operation struct to get its end_time
-                                Operation* real_prev_op = NULL;
-                                for (int pj = 0; pj < shop->num_jobs; ++pj) {
-                                    for (int po = 0; po < shop->jobs[pj].num_operations; ++po) {
-                                        Operation* candidate = &shop->jobs[pj].operations[po];
-                                        if (candidate->job_id == prev_op->job_id &&
-                                            candidate->machine_id == prev_op->machine_id) {
-                                            real_prev_op = candidate;
-                                            break;
-                                        }
+                            // Lookup real pointer to get the correct end time
+                            Operation* real_prev_op = NULL;
+                            for (int pj = 0; pj < shop->num_jobs; ++pj) {
+                                for (int po = 0; po < shop->jobs[pj].num_operations; ++po) {
+                                    Operation* candidate = &shop->jobs[pj].operations[po];
+                                    if (candidate->job_id == prev_machine_op->job_id &&
+                                        candidate->machine_id == prev_machine_op->machine_id) {
+                                        real_prev_op = candidate;
+                                        break;
                                     }
                                 }
-
-                                if (!real_prev_op || real_prev_op->end_time == -1)
-                                    continue; // can't schedule yet
-
-                                if (real_prev_op->end_time > earliest_start)
-                                    earliest_start = real_prev_op->end_time;
                             }
 
-                            break;
+                            if (!real_prev_op || real_prev_op->end_time == -1)
+                                continue;
+
+                            if (real_prev_op->end_time > earliest_start)
+                                earliest_start = real_prev_op->end_time;
                         }
+
+                        break;
                     }
                 }
 
                 // If not set or can be improved
                 if (op->start_time == -1 || op->start_time != earliest_start) {
                     op->start_time = earliest_start;
-                    op->end_time = op->start_time + op->duration;
+                    op->end_time = earliest_start + op->duration;
                     updated = true;
                 }
             }
         }
-
     } while (updated);
 }
 
@@ -136,7 +137,7 @@ int main() {
 
     bool scheduled_machines[MAX_MACHINES] = { false }; //  unscheduled all machines (for now)
 
-    compute_earliest_start_times(&shop, machines, scheduled_machines);
+    compute_earliest_start_times(&shop, machines);
 
     // Print result
     printf("\nEarliest start times:\n");
@@ -150,5 +151,3 @@ int main() {
 
     return 0;
 }
-
-
