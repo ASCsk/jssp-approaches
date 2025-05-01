@@ -6,6 +6,7 @@
 #define MAX_OPERATIONS 20
 #define MAX_OPS_PER_MACHINE 100
 
+
 typedef struct {
     int job_id;
     int machine_id;
@@ -13,6 +14,12 @@ typedef struct {
     int start_time;
     int end_time;
 } Operation;
+
+typedef struct {
+    int job_id;
+    int job_index;
+    Operation* op;
+} IndexedOperation;
 
 typedef struct {
     Operation operations[MAX_MACHINES];
