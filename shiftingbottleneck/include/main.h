@@ -1,44 +1,43 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#define MAX_JOBS 10
-#define MAX_MACHINES 10
-#define MAX_OPERATIONS 20
-#define MAX_OPS_PER_MACHINE 100
-
+#define MAX_JOBS 50
+#define MAX_MACHINES 50
+#define MAX_OPS_PER_MACHINE (MAX_JOBS)
 
 typedef struct {
-    int job_id;
     int machine_id;
-    int duration; //time units
-    int start_time;
-    int end_time;
+    int duration;
 } Operation;
 
+// Each job is a sequence of operations, in strict order.
 typedef struct {
-    int job_id;
-    int job_index;
-    Operation* op;
-} IndexedOperation;
-
-typedef struct {
-    Operation operations[MAX_MACHINES];
-    int num_operations;
+    Operation ops[MAX_MACHINES];
 } Job;
 
+// Scheduled operation on a machine with start/end timing.
 typedef struct {
-    Operation operations[MAX_OPS_PER_MACHINE];
-    int num_operations;
+    int job_id;
+    int op_index;       // Index in the job's ops array
+    int start_time;
+    int end_time;
+} ScheduledOp;
+
+// Each machine has a timeline of operations assigned to it.
+typedef struct {
+    ScheduledOp schedule[MAX_OPS_PER_MACHINE];
+    int count; // How many operations are scheduled
 } MachineSchedule;
 
+// The overall schedule state
 typedef struct {
     Job jobs[MAX_JOBS];
+    MachineSchedule machine_schedules[MAX_MACHINES];
     int num_jobs;
     int num_machines;
-} JobShop;
+} Schedule;
 
 // Function prototypes
-void load_instance(JobShop* shop);
-void print_instance(const JobShop* shop);
+//...
 
-#endif // MAIN_H
+#endif
