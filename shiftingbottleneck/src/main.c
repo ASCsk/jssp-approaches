@@ -157,75 +157,6 @@ void compute_earliest_start_times(JobShop* shop, MachineSchedule* machines) {
     } while (updated);
 }
 
-/**
- * Compares two IndexedOperation structures first by job_id and then by job_index.
- * This function is used for sorting the operations in the machine schedule.
- *
- * @param a Pointer to the first IndexedOperation structure.
- * @param b Pointer to the second IndexedOperation structure.
- * @return An integer less than, equal to, or greater than zero if a is found to be less than,
- *         equal to, or greater than b, respectively.
- */
-int compare_by_job_and_index(const void* a, const void* b) {
-    IndexedOperation* op_a = (IndexedOperation*)a;
-    IndexedOperation* op_b = (IndexedOperation*)b;
-
-    if (op_a->job_id != op_b->job_id) {
-        return op_a->job_id - op_b->job_id;
-    } else {
-        return op_a->job_index - op_b->job_index;
-    }
-}
-/**
- * Generates a placeholder priority for the operations in the job shop scheduling problem.
- * The function flattens the operations into a single array and sorts them by job ID and operation index.
- *
- * @param shop Pointer to the JobShop structure containing jobs and operations.
- * @param out_ops Pointer to an array of IndexedOperation structures to store the flattened operations.
- * @return The number of operations generated.
- */
-int generate_placeholder_priority(JobShop* shop, IndexedOperation* out_ops) {
-    int count = 0;
-    for (int j = 0; j < shop->num_jobs; ++j) {
-        for (int o = 0; o < shop->jobs[j].num_operations; ++o) {
-            out_ops[count++] = (IndexedOperation) { j, o, &shop->jobs[j].operations[o] };
-        }
-    }
-
-    qsort(out_ops, count, sizeof(IndexedOperation), compare_by_job_and_index);
-    return count;
-}
-/**
- * Schedules operations from left to right based on their earliest start times.
- * The function iterates through the operations and assigns start and end times based on the last job and machine end times.
- *
- * @param flat_ops Pointer to an array of IndexedOperation structures representing the operations to be scheduled.
- * @param num_flat_ops The number of operations in the flat_ops array.
- * @param num_jobs The number of jobs in the job shop.
- * @param num_machines The number of machines in the job shop.
- */
-void schedule_left_to_right(IndexedOperation flat_ops[], int num_flat_ops, int num_jobs, int num_machines) {
-    int last_job_end[MAX_JOBS] = { 0 };
-    int last_machine_end[MAX_MACHINES] = { 0 };
-
-    for (int i = 0; i < num_flat_ops; ++i) {
-        Operation* op = flat_ops[i].op;
-
-        int job_id = flat_ops[i].job_index;
-        int machine_id = op->machine_id;
-
-        int earliest_start = last_job_end[job_id] > last_machine_end[machine_id]
-            ? last_job_end[job_id]
-            : last_machine_end[machine_id];
-
-        op->start_time = earliest_start;
-        op->end_time = earliest_start + op->duration;
-
-        last_job_end[job_id] = op->end_time;
-        last_machine_end[machine_id] = op->end_time;
-    }
-}
-
 int main() {
     JobShop shop;
     MachineSchedule machines[MAX_MACHINES];
@@ -253,21 +184,7 @@ int main() {
             printf("  Op on M%d: start=%d, end=%d\n", op.machine_id, op.start_time, op.end_time);
         }
     }
-    //## Testing opperations priority ##
-    IndexedOperation flat_ops[MAX_JOBS * MAX_OPERATIONS];
-
-    int num_flat_ops = generate_placeholder_priority(&shop, flat_ops);
-
-    printf("\nFlat operations sorted by job and index:\n");
-    for (int i = 0; i < num_flat_ops; ++i) {
-        Operation* op = flat_ops[i].op;
-        printf("Job %d, Op %d (Machine %d, Duration %d)\n",
-            flat_ops[i].job_id, flat_ops[i].job_index, op->machine_id, op->duration);
-    }
-    //## Testing scheduling ##
-    printf("\nScheduling operations left to right:\n");
-    schedule_left_to_right(flat_ops, num_flat_ops, shop.num_jobs, shop.num_machines);
-
+    
     print_gantt_chart(shop);
     return 0;
 }
