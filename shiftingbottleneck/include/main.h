@@ -38,6 +38,10 @@ typedef struct {
 } Schedule;
 
 // Function prototypes
-//...
+int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines);
+void load_matrix_into_schedule(int** matrix, int num_jobs, int num_machines, Schedule* schedule);
+
+// Debugging:
+void debug_print_loaded_schedule(Schedule* schedule);
 
 #endif
