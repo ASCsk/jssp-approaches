@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <unistd.h>
+#include "file_utils.h"
+
+/**
+ * Extracts the subdirectory from the filename.
+ * The subdirectory is determined by the characters before the first digit in the filename.
+ * @param filename The filename to extract the subdirectory from.
+ * @param subdir The buffer to store the extracted subdirectory.
+ * @param maxlen The maximum length of the subdir buffer.
+ */
+static void extract_subdir_from_filename(const char* filename, char* subdir, size_t maxlen) {
+    size_t i = 0;
+    while (filename[i] && !isdigit(filename[i]) && i < maxlen - 1) {
+        subdir[i] = filename[i];
+        i++;
+    }
+    subdir[i] = '\0';
+}
+/**
+ * Loads a JSSP matrix from a file.
+ * The function reads the number of jobs and machines from the first line of the file,
+ * and then reads the matrix data into a dynamically allocated 2D array.
+ * @param filename The name of the file to load the matrix from.
+ * @param num_jobs Pointer to store the number of jobs.
+ * @param num_machines Pointer to store the number of machines.
+ * @return A pointer to the dynamically allocated 2D array representing the matrix, or NULL on failure.
+ */
+int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines) {
+    char subdir[32];
+    extract_subdir_from_filename(filename, subdir, sizeof(subdir));
+
+    char fullpath[256];
+    snprintf(fullpath, sizeof(fullpath), "%s%s/%s", JSSP_ROOT, subdir, filename);
+
+    printf("Looking for file at path: %s\n", fullpath);
+
+    FILE* file = fopen(fullpath, "r");
+    if (!file) {
+        fprintf(stderr, "File not found at path: %s\n", fullpath);
+        return NULL;
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        if (line[0] != '#') {
+            sscanf(line, "%d %d", num_jobs, num_machines);
+            break;
+        }
+    }
+
+    int rows = *num_jobs;
+    int cols = *num_machines * 2;
+
+    int** matrix = malloc(rows * sizeof(int*));
+    for (int i = 0; i < rows; i++) {
+        matrix[i] = malloc(cols * sizeof(int));
+        for (int j = 0; j < cols; j++) {
+            if (fscanf(file, "%d", &matrix[i][j]) != 1) {
+                fprintf(stderr, "Error reading value at [%d][%d] from file.\n", i, j);
+                exit(EXIT_FAILURE);  
+            }
+        }
+    }
+
+    fclose(file);
+    return matrix;
+}
+
+void print_matrix(int** matrix, int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            printf("%2d ", matrix[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+void free_matrix(int** matrix, int rows) {
+    for (int i = 0; i < rows; i++) {
+        free(matrix[i]);
+    }
+    free(matrix);
+}
+
+void print_current_working_directory() {
+    char cwd[256];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        printf("\nCurrent working dir: %s\n", cwd);
+    }
+    else {
+        perror("getcwd() error");
+    }
+}
