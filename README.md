@@ -37,7 +37,7 @@ The goal is to schedule one machine at a time, always choosing the one that's cu
 ```
 ```
 - ✅ **[Done]** Load instance from file and present matrix
-```
+```shell
 Loaded JSSP matrix: 10 jobs, 10 machines
  0 29  1 78  2  9  3 36  4 49  5 11  6 62  7 56  8 44  9 21 
  0 43  2 90  4 75  9 11  3 69  1 28  6 46  5 46  7 72  8 30 
@@ -51,7 +51,7 @@ Loaded JSSP matrix: 10 jobs, 10 machines
  1 85  0 13  2 61  6  7  8 64  9 76  5 47  3 52  4 90  7 45 
 ```
 - ✅ **[Done]** Load schedule structure with current data matrix
-```
+```shell
 Loaded schedule:
 Job 0: Machine 0, Duration 29; Machine 1, Duration 78; Machine 2, Duration 9; Machine 3, Duration 36; Machine 4, Duration 49; Machine 5, Duration 11; Machine 6, Duration 62; Machine 7, Duration 56; Machine 8, Duration 44; Machine 9, Duration 21;
 Job 1: Machine 0, Duration 43; Machine 2, Duration 90; Machine 4, Duration 75; Machine 9, Duration 11; Machine 3, Duration 69; Machine 1, Duration 28; Machine 6, Duration 46; Machine 5, Duration 46; Machine 7, Duration 72; Machine 8, Duration 30;
@@ -67,7 +67,37 @@ Job 9: Machine 1, Duration 85; Machine 0, Duration 13; Machine 2, Duration 61; M
 - [ ] Build a disjunctive graph (or equivalent structure) for operations on m considering:
   - Precedence constraints (job order)
   - Machine constraints (no overlapping tasks)
+
+Conjunctive arcs:
+Represent job precedence.
+
+E.g., in Job 2: Op1 → Op2 → Op3
+
+You can’t change their order.
+
+Disjunctive arcs:
+Represent machine exclusivity.
+
+If machine M3 is used by Job 1 Op2 and Job 4 Op1, they both must be ordered, but either order is valid.
+
+So: the goal is to find the best order for the disjunctive arcs (i.e., the ops on machine m) that results in the smallest makespan.
 We eventually want to solve a single-machine scheduling problem with precedence constraints to compute the critical path (i.e., longest processing time path).
+
+```yaml
+Job 0: [M2, M3, M1]
+Job 1: [M1, M3, M2]
+
+We are analyzing M3.
+
+Ops on M3:
+  - Job 0, Op 1 (comes after Job 0, Op 0)
+  - Job 1, Op 1 (comes after Job 1, Op 0)
+
+→ We must:
+- Respect: Job 0, Op 0 → Job 0, Op 1
+- Respect: Job 1, Op 0 → Job 1, Op 1
+- Choose: Should Job 0’s M3 op happen before or after Job 1’s?
+```
 
 - [ ] Implement Earliest Start Time Scheduling
   - For a given machine m, implement a greedy scheduling routine that:
@@ -96,3 +126,5 @@ We eventually want to solve a single-machine scheduling problem with precedence 
     - Find the bottleneck machine
     - Fix its schedule (permanent order)
     - Repeat until all machines are fixed
+    
+# Details1:
