@@ -29,7 +29,6 @@ int** load_and_print_jssp_matrix(const char* jss_filename, int* num_jobs, int* n
     if (matrix) {
         printf("Loaded JSSP matrix: %d jobs, %d machines\n", *num_jobs, *num_machines);
         print_matrix(matrix, *num_jobs, *num_machines * 2);
-        // free_matrix(matrix, *num_jobs); <-- Commenting this because it will invalidate the conversion to static_matrix
     }
     else {
         fprintf(stderr, "Failed to load JSSP matrix from '%s'\n", jss_filename);
