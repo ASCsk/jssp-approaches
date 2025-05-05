@@ -28,11 +28,12 @@ typedef struct {
     int job_id;
     int op_index;
     int duration;
+    int est;  // earliest start time
 } MachineOpStub;
 
 // Each machine has a timeline of operations assigned to it.
 typedef struct {
-    ScheduledOp schedule[MAX_OPS_PER_MACHINE];
+    ScheduledOp scheduled_op[MAX_OPS_PER_MACHINE];
     int count; // How many operations are scheduled
 } MachineSchedule;
 
@@ -50,16 +51,9 @@ typedef struct {
 int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines);
 // Load matrix into schedule
 void load_matrix_into_schedule(int** matrix, int num_jobs, int num_machines, Schedule* schedule);
+//collect opperations for a single machine (by machine_id)
+void collect_ops_for_machine(Schedule* schedule, int machine_id, MachineOpStub* ops, int* count);
 
-// Potential methods
-//  For machine scheduling logic
-int schedule_single_machine(Schedule* schedule, int machine_id, int* op_order);  // Returns makespan
-// To compute start and end times for operations
-void compute_earliest_start_times(Schedule* schedule, int machine_id, int* op_order);
-// To evaluate bottlenecks
-int find_bottleneck_machine(Schedule* schedule, int* machine_order);
-// To finalize a machine's schedule
-void fix_machine_schedule(Schedule* schedule, int machine_id, int* op_order);
 
 
 // Debugging:

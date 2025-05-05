@@ -64,9 +64,41 @@ Job 7: Machine 2, Duration 31; Machine 0, Duration 86; Machine 1, Duration 46; M
 Job 8: Machine 0, Duration 76; Machine 1, Duration 69; Machine 3, Duration 76; Machine 5, Duration 51; Machine 2, Duration 85; Machine 9, Duration 11; Machine 6, Duration 40; Machine 7, Duration 89; Machine 4, Duration 26; Machine 8, Duration 74;
 Job 9: Machine 1, Duration 85; Machine 0, Duration 13; Machine 2, Duration 61; Machine 6, Duration 7; Machine 8, Duration 64; Machine 9, Duration 76; Machine 5, Duration 47; Machine 3, Duration 52; Machine 4, Duration 90; Machine 7, Duration 45;
 ```
-- [ ] Build a disjunctive graph (or equivalent structure) for operations on m considering:
+- **[Partially Done]** Build a disjunctive graph (or equivalent structure) for operations on m considering:
   - Precedence constraints (job order)
   - Machine constraints (no overlapping tasks)
+  - [Disjunctive Graph Construction](#disjunctive-graph-construction)
+
+- [ ] Implement Earliest Start Time Scheduling
+  - For a given machine m, implement a greedy scheduling routine that:
+    - Schedules operations on m in some order (initially just order of appearance)
+    - For each operation:
+      - Determines its earliest possible start time considering:
+        - Its predecessor in the same job
+        - The previous operation on the machine
+      - Stores the resulting ScheduledOp entries into MachineSchedule
+  - This will enable us to: 
+    - Build a Gantt-like schedule for a single machine
+    - Compute makespan for that machine
+
+- [ ] Identify the Bottleneck
+  - For each machine:
+    - Run the scheduling logic above
+    - Compute makespan of that machine
+    - Store the critical path
+  - Then:
+    - Pick the machine with maximum makespan → this is your bottleneck
+    - Fix the schedule for that machine (lock its order)
+    - Update global constraints (e.g., precedence edges for future operations)
+
+- [ ] Loop:
+    - Identify unscheduled machines
+    - Schedule each temporarily
+    - Find the bottleneck machine
+    - Fix its schedule (permanent order)
+    - Repeat until all machines are fixed
+    
+## Disjunctive Graph Construction
 
 Conjunctive arcs:
 Represent job precedence.
@@ -80,8 +112,7 @@ Represent machine exclusivity.
 
 If machine M3 is used by Job 1 Op2 and Job 4 Op1, they both must be ordered, but either order is valid.
 
-So: the goal is to find the best order for the disjunctive arcs (i.e., the ops on machine m) that results in the smallest makespan.
-We eventually want to solve a single-machine scheduling problem with precedence constraints to compute the critical path (i.e., longest processing time path).
+So: the goal is to find the best order for the disjunctive arcs (i.e., the ops on machine m) that results in the smallest makespan. We eventually want to solve a single-machine scheduling problem with precedence constraints to compute the critical path (i.e., longest processing time path).
 
 ```yaml
 Job 0: [M2, M3, M1]
@@ -97,34 +128,4 @@ Ops on M3:
 - Respect: Job 0, Op 0 → Job 0, Op 1
 - Respect: Job 1, Op 0 → Job 1, Op 1
 - Choose: Should Job 0’s M3 op happen before or after Job 1’s?
-```
 
-- [ ] Implement Earliest Start Time Scheduling
-  - For a given machine m, implement a greedy scheduling routine that:
-    - Schedules operations on m in some order (initially just order of appearance)
-    - For each operation:
-      - Determines its earliest possible start time considering:
-        - Its predecessor in the same job
-        - The previous operation on the machine
-      - Stores the resulting ScheduledOp entries into MachineSchedule
-  - This will enable us to : 
-    - Build a Gantt-like schedule for a single machine
-    - Compute makespan for that machine
-
-- [ ] Identify the Bottleneck
-  - For each machine:
-    - Run the scheduling logic above
-    - Compute makespan of that machine
-    - Store the critical path
-  - Then:
-    - Pick the machine with maximum makespan → this is your bottleneck
-    - Fix the schedule for that machine (lock its order)
-    - Update global constraints (e.g., precedence edges for future operations)
-- [ ] Loop:
-    - Identify unscheduled machines
-    - Schedule each temporarily
-    - Find the bottleneck machine
-    - Fix its schedule (permanent order)
-    - Repeat until all machines are fixed
-    
-# Details1:
