@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include "file_utils.h"
 #include "main.h"
@@ -170,15 +171,11 @@ void schedule_machine_ops(Schedule* schedule, int machine_id, MachineOpStub* ops
         int end_time = start_time + ops[i].duration;
 
         // Create an actual ScheduledOp structure to represent the scheduled operation
-        ScheduledOp s = {
-            .job_id = ops[i].job_id,
-            .op_index = ops[i].op_index,
-            .start_time = start_time,
-            .end_time = end_time
-        };
-
-        // Add the scheduled operation to the machine's schedule
-        ms->scheduled_op[ms->count++] = s;
+        ms->scheduled_op[ms->count].job_id = ops[i].job_id;
+        ms->scheduled_op[ms->count].op_index = ops[i].op_index;
+        ms->scheduled_op[ms->count].start_time = start_time;
+        ms->scheduled_op[ms->count].end_time = end_time;
+        ms->count++;
 
         // Update the current time to the end time of the scheduled operation
         current_time = end_time;
@@ -187,7 +184,166 @@ void schedule_machine_ops(Schedule* schedule, int machine_id, MachineOpStub* ops
 
 // Next steps:
 
+void build_disjunctive_graph(Graph* graph, const Schedule* schedule, int machine_id) {
+    const MachineSchedule* ms = &schedule->machine_schedules[machine_id];
+    int count = ms->count;
 
+    MachineOpStub stubs[MAX_OPS_PER_MACHINE];
+
+    // Step 1: Build operation stubs for this machine
+    for (int i = 0; i < count; i++) {
+        const ScheduledOp* sop = &ms->scheduled_op[i];
+        const Operation* op = &schedule->jobs[sop->job_id].ops[sop->op_index];
+
+        stubs[i].job_id = sop->job_id;
+        stubs[i].op_index = sop->op_index;
+        stubs[i].duration = op->duration;
+        stubs[i].est = sop->start_time;
+    }
+
+    // Step 2: Sort by earliest start time (simple bubble sort since count is small)
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = i + 1; j < count; j++) {
+            if (stubs[i].est > stubs[j].est) {
+                MachineOpStub temp = stubs[i];
+                stubs[i] = stubs[j];
+                stubs[j] = temp;
+            }
+        }
+    }
+
+    // Step 3: Initialize graph
+    memset(graph->adj, 0, sizeof(graph->adj));
+    memset(graph->weight, 0, sizeof(graph->weight));
+    graph->numVertices = count;
+
+    // Step 4: Add edges in order of est
+    for (int i = 0; i < count - 1; i++) {
+        int from = i;
+        int to = i + 1;
+
+        graph->adj[from][to] = 1;
+        graph->weight[from][to] = stubs[i].duration;
+    }
+}
+
+/**
+ * Topological sort is needed because the graph is a DAG (no cycles in disjunctive constraints).
+ * Once sorted, we relax all edges in topological order (DP-style), keeping max distances.
+ * This function returns the total duration of the longest path, i.e., the machine's makespan and bottleneck length.
+ */
+
+int find_critical_path(const Graph* graph) {
+    int n = graph->numVertices;
+    int dist[MAX_OPS_PER_MACHINE] = { 0 };
+    int visited[MAX_OPS_PER_MACHINE] = { 0 };
+    int order[MAX_OPS_PER_MACHINE];
+    int top = -1;
+
+    // ---- Step 1: Topological sort (DFS-based) ----
+    void dfs(int u) {
+        visited[u] = 1;
+        for (int v = 0; v < n; v++) {
+            if (graph->adj[u][v] && !visited[v]) {
+                dfs(v);
+            }
+        }
+        order[++top] = u;
+    }
+
+    for (int i = 0; i < n; i++) {
+        if (!visited[i]) dfs(i);
+    }
+
+    // ---- Step 2: Longest path DP ----
+    for (int i = top; i >= 0; i--) {
+        int u = order[i];
+        for (int v = 0; v < n; v++) {
+            if (graph->adj[u][v]) {
+                if (dist[v] < dist[u] + graph->weight[u][v]) {
+                    dist[v] = dist[u] + graph->weight[u][v];
+                }
+            }
+        }
+    }
+
+    // ---- Step 3: Return the maximum distance ----
+    int max_len = 0;
+    for (int i = 0; i < n; i++) {
+        if (dist[i] > max_len) max_len = dist[i];
+    }
+
+    return max_len;
+}
+
+int extract_critical_path(const Graph* graph, int path[MAX_OPS_PER_MACHINE]) {
+    int n = graph->numVertices;
+    int dist[MAX_OPS_PER_MACHINE] = { 0 };
+    int pred[MAX_OPS_PER_MACHINE];
+    int visited[MAX_OPS_PER_MACHINE] = { 0 };
+    int order[MAX_OPS_PER_MACHINE];
+    int top = -1;
+
+    // Initialize predecessors to -1 (no parent)
+    for (int i = 0; i < n; i++) {
+        pred[i] = -1;
+    }
+
+    // ---- Topological Sort ----
+    void dfs(int u) {
+        visited[u] = 1;
+        for (int v = 0; v < n; v++) {
+            if (graph->adj[u][v] && !visited[v]) {
+                dfs(v);
+            }
+        }
+        order[++top] = u;
+    }
+
+    for (int i = 0; i < n; i++) {
+        if (!visited[i]) dfs(i);
+    }
+
+    // ---- Longest Path DP ----
+    for (int i = top; i >= 0; i--) {
+        int u = order[i];
+        for (int v = 0; v < n; v++) {
+            if (graph->adj[u][v]) {
+                int new_dist = dist[u] + graph->weight[u][v];
+                if (new_dist > dist[v]) {
+                    dist[v] = new_dist;
+                    pred[v] = u;
+                }
+            }
+        }
+    }
+
+    // ---- Trace back the longest path ----
+    // Find the vertex with the max distance
+    int max_dist = 0;
+    int end_vertex = 0;
+    for (int i = 0; i < n; i++) {
+        if (dist[i] > max_dist) {
+            max_dist = dist[i];
+            end_vertex = i;
+        }
+    }
+
+    // Reconstruct path from end_vertex using predecessors
+    int len = 0;
+    for (int v = end_vertex; v != -1; v = pred[v]) {
+        path[len++] = v;
+    }
+
+    // The path was built in reverse, reverse it back
+    for (int i = 0; i < len / 2; i++) {
+        int tmp = path[i];
+        path[i] = path[len - 1 - i];
+        path[len - 1 - i] = tmp;
+    }
+
+    return len;
+}
 
 // ## DEBUG FUNCTIONS ##
 
@@ -241,6 +397,32 @@ void validate_machine_schedule(const Schedule* schedule, int machine_id) {
     printf("\nSchedule for machine %d is valid.\n", machine_id);
 }
 
+void print_disjunctive_graph(const Graph* graph) {
+    printf("Disjunctive Graph:\n");
+    printf("Number of vertices: %d\n", graph->numVertices);
+
+    printf("Adjacency Matrix:\n");
+    for (int i = 0; i < graph->numVertices; i++) {
+        for (int j = 0; j < graph->numVertices; j++) {
+            printf("%d ", graph->adj[i][j]);
+        }
+        printf("\n");
+    }
+
+    printf("\nWeight Matrix:\n");
+    for (int i = 0; i < graph->numVertices; i++) {
+        for (int j = 0; j < graph->numVertices; j++) {
+            if (graph->adj[i][j]) {
+                printf("%d ", graph->weight[i][j]);
+            }
+            else {
+                printf("0 ");
+            }
+        }
+        printf("\n");
+    }
+}
+
 int main() {
 
     Schedule schedule;
@@ -274,6 +456,25 @@ int main() {
     debug_print_machine_schedule(&schedule, machine_id);
 
     validate_machine_schedule(&schedule, machine_id);
+
+    Graph g;
+
+    int path[MAX_OPS_PER_MACHINE];
+
+    build_disjunctive_graph(&g, &schedule, machine_id);
+
+    print_disjunctive_graph(&g);
+
+    int path_len = extract_critical_path(&g, path);
+
+    printf("Critical path on machine %d:\n", machine_id);
+    for (int i = 0; i < path_len; i++) {
+        printf(" -> Op index %d\n", path[i]);
+    }
+
+    int bottleneck_length = find_critical_path(&g);
+
+    printf("\nBottleneck length for machine %d: %d\n", machine_id, bottleneck_length);
 
 
     return 0;
