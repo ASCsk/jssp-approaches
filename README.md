@@ -32,10 +32,10 @@ The goal is to schedule one machine at a time, always choosing the one that's cu
 4. **Update the partial schedule** to include and respect this machine’s order.
 
 5. **Repeat** until all machines are scheduled.
-
+```
+```
 # TODO:
-```
-```
+
 - ✅ **[Done]** Load instance from file and present matrix
 ```shell
 Loaded JSSP matrix: 10 jobs, 10 machines
