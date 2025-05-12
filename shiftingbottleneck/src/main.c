@@ -1,191 +1,281 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include "../include/main.h"
+#include <assert.h>
+
+#include "file_utils.h"
+#include "main.h"
 
 /**
- * Prints the Gantt chart for the job shop scheduling problem.
- * The function iterates through all machines and their operations, printing the job ID and start/end times for each operation.
- *
- * @param shop Pointer to the JobShop structure containing jobs and operations.
+ * Prints the current working directory to the console.
+ * Checks if the number of jobs and machines exceeds the maximum allowed values.
+ * If the matrix is successfully loaded, it prints the matrix.
+ * This function uses the getcwd function to retrieve the current working directory and prints it.
+ * @param jss_filename is the name of the jss file to load.
+ * @param num_jobs is a pointer to an integer where the number of jobs will be stored.
+ * @param num_machines is a pointer to an integer where the number of machines will be stored.
  */
-void print_gantt_chart(const JobShop shop) {
-    printf("\n\nGantt Chart (Textual):\n");
+int** load_and_print_jssp_matrix(const char* jss_filename, int* num_jobs, int* num_machines) {
+    int** matrix = load_jssp_matrix(jss_filename, num_jobs, num_machines);
 
-    for (int m = 0; m < shop.num_machines; ++m) {
-        printf("Machine %d: ", m);
-        for (int j = 0; j < shop.num_jobs; ++j) {
-            for (int o = 0; o < shop.jobs[j].num_operations; ++o) {
-                Operation op = shop.jobs[j].operations[o];
-                if (op.machine_id == m) {
-                    printf("[J%d %d-%d] ", op.job_id, op.start_time, op.end_time);
+    if (*num_jobs > MAX_JOBS) {
+        fprintf(stderr, "Error: Number of jobs exceeds the maximum allowed (%d). Found %d jobs.\n", MAX_JOBS, *num_jobs);
+        exit(1);
+    }
+
+    if (*num_machines > MAX_MACHINES) {
+        fprintf(stderr, "Error: Number of machines exceeds the maximum allowed (%d). Found %d machines.\n", MAX_MACHINES, *num_machines);
+        exit(1);
+    }
+
+    if (matrix) {
+        printf("Loaded JSSP matrix: %d jobs, %d machines\n", *num_jobs, *num_machines);
+        print_matrix(matrix, *num_jobs, *num_machines * 2);
+    }
+    else {
+        fprintf(stderr, "Failed to load JSSP matrix from '%s'\n", jss_filename);
+    }
+    return matrix;
+}
+
+/**
+ * Loads the JSSP matrix into the schedule structure.
+ * This function takes a matrix of operations and their durations, and populates the schedule structure with this data.
+ * It iterates through each job and each operation, assigning the machine ID and duration to the corresponding job's operation.
+ * @param matrix is the matrix of operations and their durations.
+ * @param num_jobs is the number of jobs in the matrix.
+ * @param num_machines is the number of machines in the matrix.
+ * @param schedule is a pointer to the Schedule structure to be populated.
+ */
+void load_matrix_into_schedule(int** matrix, int num_jobs, int num_machines, Schedule* schedule) {
+    schedule->num_jobs = num_jobs;
+    schedule->num_machines = num_machines;
+
+    for (int job = 0; job < num_jobs; ++job) {
+        for (int i = 0; i < num_machines * 2; i += 2) {
+            int machine = matrix[job][i];
+            int duration = matrix[job][i + 1];
+            int op_index = i / 2;
+
+            schedule->jobs[job].ops[op_index].machine_id = machine;
+            schedule->jobs[job].ops[op_index].duration = duration;
+        }
+    }
+}
+
+
+/**
+ * Collects operations for a specific machine from the schedule.
+ * This function takes a schedule and a machine ID, and populates an array of MachineOpStub structure with the operations
+ * assigned to that machine. It also keeps track of the number of operations collected.
+ * @param schedule is the schedule containing the jobs and their operations.
+ * @param machine_id is the ID of the machine for which to collect operations.
+ * @param ops is an array of MachineOpStub structures to be populated with the operations.
+ * @param count is a pointer to an integer where the number of collected operations will be stored.
+ */
+void collect_ops_for_machine(Schedule* schedule, int machine_id, MachineOpStub* ops, int* count) {
+    *count = 0;
+    for (int job = 0; job < schedule->num_jobs; ++job) {
+        for (int op_index = 0; op_index < schedule->num_machines; ++op_index) {
+            Operation op = schedule->jobs[job].ops[op_index];
+            if (op.machine_id == machine_id) {
+                ops[*count].job_id = job;
+                ops[*count].op_index = op_index;
+                ops[*count].duration = op.duration;
+                (*count)++;
+                break; // One op per job for this machine
+            }
+        }
+    }
+}
+
+/* 
+    This assumes that the previous operation has already been scheduled. 
+    We’ll need to schedule jobs in topological order later (Shifting Bottleneck handles that).
+*/ 
+/**
+ * Computes the earliest start times (EST) for each operation in the schedule.
+ * This function iterates through the operations and calculates the earliest start time based on the previous operation's end time.
+ * @param schedule is the schedule containing the jobs and their operations.
+ * @param ops is an array of MachineOpStub structures containing the operations to compute EST for.
+ * @param count is the number of operations in the ops array.
+ */
+void compute_earliest_start_times(Schedule* schedule, MachineOpStub* ops, int count) {
+    for (int i = 0; i < count; ++i) {
+        int job_id = ops[i].job_id;
+        int op_index = ops[i].op_index;
+
+        if (op_index == 0) {
+            ops[i].est = 0;  // first op in the job
+        }
+        else {
+            Operation* prev_op = &schedule->jobs[job_id].ops[op_index - 1];
+            int prev_machine = prev_op->machine_id;
+
+            // Find when the previous operation finishes on its machine
+            MachineSchedule* ms = &schedule->machine_schedules[prev_machine];
+            for (int j = 0; j < ms->count; ++j) {
+                ScheduledOp* s = &ms->scheduled_op[j];
+                if (s->job_id == job_id && s->op_index == op_index - 1) {
+                    ops[i].est = s->end_time;
+                    break;
                 }
             }
+        }
+    }
+}
+
+// Basic sort
+/**
+ * Compares two MachineOpStub structures based on their earliest start time (EST).
+ */
+int compare_by_est(const void* a, const void* b) {
+    MachineOpStub* op1 = (MachineOpStub*)a;
+    MachineOpStub* op2 = (MachineOpStub*)b;
+    return op1->est - op2->est;
+}
+
+/**
+ * Schedules operations for a specific machine in the schedule.
+ * This function takes a schedule, a machine ID, and an array of MachineOpStub structures, and schedules the operations
+ * on the specified machine. It sorts the operations by their earliest start time (EST) and assigns them to the machine's schedule.
+ * @param schedule is the schedule containing the jobs and their operations.
+ * @param machine_id is the ID of the machine to schedule operations for.
+ * @param ops is an array of MachineOpStub structures containing the operations to be scheduled.
+ * @param count is the number of operations in the ops array.
+ */
+void schedule_machine_ops(Schedule* schedule, int machine_id, MachineOpStub* ops, int count) {
+    // Retrieve the schedule for the specific machine
+    MachineSchedule* ms = &schedule->machine_schedules[machine_id];
+
+    /**
+     * Sort the operations by their earliest start time (EST) using the compare_by_est function
+     * It returns the difference: op1->est - op2->est.
+     *  - If the result is negative, op1 comes before op2 in the sorted order.
+     *  - If the result is positive, op2 comes before op1.
+     *  - If the result is zero, the two elements are considered equal in terms of sorting.
+    */
+    qsort(ops, count, sizeof(MachineOpStub), compare_by_est);
+
+    int current_time = 0;
+
+    // Iterate through the sorted operations
+    for (int i = 0; i < count; ++i) {
+        // Determine the start time for the operation
+        // If the earliest start time (ops[i].est) is greater than the current time, use it
+        // Otherwise, use the current time
+        int start_time = (ops[i].est > current_time) ? ops[i].est : current_time;
+
+        // Calculate the end time by adding the operation's duration to the start time
+        int end_time = start_time + ops[i].duration;
+
+        // Create an actual ScheduledOp structure to represent the scheduled operation
+        ScheduledOp s = {
+            .job_id = ops[i].job_id,
+            .op_index = ops[i].op_index,
+            .start_time = start_time,
+            .end_time = end_time
+        };
+
+        // Add the scheduled operation to the machine's schedule
+        ms->scheduled_op[ms->count++] = s;
+
+        // Update the current time to the end time of the scheduled operation
+        current_time = end_time;
+    }
+}
+
+// Next steps:
+
+
+
+// ## DEBUG FUNCTIONS ##
+
+void debug_print_loaded_schedule(Schedule* schedule) {
+    printf("Loaded schedule:\n");
+    for (int job = 0; job < schedule->num_jobs; ++job) {
+        printf("Job %d: ", job);
+        for (int op = 0; op < schedule->num_machines; ++op) {
+            printf("Machine %d, Duration %d; ", schedule->jobs[job].ops[op].machine_id, schedule->jobs[job].ops[op].duration);
         }
         printf("\n");
     }
 }
 
-/**
- * Loads a sample instance of the job shop scheduling problem.
- * This function initializes the job shop with a predefined number of jobs and machines,
- */
-void load_instance(JobShop* shop) {
-    shop->num_jobs = 3;
-    shop->num_machines = 3;
-
-    // job_id | machine_id | duration | start_time | end_time;
-    shop->jobs[0].operations[0] = (Operation) { 0, 0, 3, -1, -1 };
-    shop->jobs[0].operations[1] = (Operation) { 0, 1, 2, -1, -1 };
-    shop->jobs[0].operations[2] = (Operation) { 0, 2, 2, -1, -1 };
-    shop->jobs[0].num_operations = 3;
-
-    // Job 1
-    // job_id | machine_id | duration | start_time | end_time; [designated initialization or compound literal initialization]
-    shop->jobs[1].operations[0] = (Operation) { 1, 1, 2, -1, -1 };
-    shop->jobs[1].operations[1] = (Operation) { 1, 2, 1, -1, -1 };
-    shop->jobs[1].operations[2] = (Operation) { 1, 0, 4, -1, -1 };
-    shop->jobs[1].num_operations = 3;
-
-    // Job 2
-    shop->jobs[2].operations[0] = (Operation) { 2, 2, 4, -1, -1 };
-    shop->jobs[2].operations[1] = (Operation) { 2, 0, 3, -1, -1 };
-    shop->jobs[2].operations[2] = (Operation) { 2, 1, 2, -1, -1 };
-    shop->jobs[2].num_operations = 3;
-}
-/**
- * Initializes the machine schedules by setting the number of operations to zero for each machine.
- * The function iterates through all machines and sets their operation count to zero.
- *
- * @param shop Pointer to the JobShop structure containing jobs and operations.
- * @param machines Pointer to an array of MachineSchedule structures representing the schedules of each machine.
- */
-void initialize_machines_schedules(JobShop* shop, MachineSchedule* machines) {
-    for (int m = 0; m < shop->num_machines; ++m) {
-        machines[m].num_operations = 0;
+void debug_print_collected_ops(MachineOpStub* ops, int count) {
+    printf("\nCollected operations:\n");
+    for (int i = 0; i < count; ++i) {
+        printf("Job %d, Op %d, Duration %d, est %d\n", ops[i].job_id, ops[i].op_index, ops[i].duration, ops[i].est);
     }
 }
-/**
- * Assigns operations to their respective machines in the machine schedules.
- * The function iterates through all jobs and their operations, assigning each operation to the corresponding machine schedule.
- *
- * @param shop Pointer to the JobShop structure containing jobs and operations.
- * @param machines Pointer to an array of MachineSchedule structures representing the schedules of each machine.
- */
-void assing_operations_to_machines(JobShop* shop, MachineSchedule* machines) {
-    for (int j = 0; j < shop->num_jobs; ++j) {
-        for (int o = 0; o < shop->jobs[j].num_operations; ++o) {
-            Operation op = shop->jobs[j].operations[o];
-            machines[op.machine_id].operations[machines[op.machine_id].num_operations++] = op;
-        }
+
+void debug_print_machine_schedule(Schedule* schedule, int machine_id) {
+    MachineSchedule* ms = &schedule->machine_schedules[machine_id];
+    printf("\nSchedule for Machine %d:\n", machine_id);
+
+    for (int i = 0; i < ms->count; ++i) {
+        ScheduledOp* s = &ms->scheduled_op[i];
+        printf("  Job %d - Op %d: Start %d, End %d (Duration %d)\n",
+            s->job_id, s->op_index, s->start_time, s->end_time,
+            s->end_time - s->start_time);
     }
 }
-/**
- * Computes the earliest start times for each operation in the job shop scheduling problem.
- * The function iterates through all jobs and their operations, updating the start and end times based on job order and machine order constraints.
- * The function continues to iterate until no further updates are made to the start and end times.
- *
- * @param shop Pointer to the JobShop structure containing jobs and operations.
- * @param machines Pointer to an array of MachineSchedule structures representing the schedules of each machine.
- */
-void compute_earliest_start_times(JobShop* shop, MachineSchedule* machines) {
-    // Reset all start and end times
-    for (int j = 0; j < shop->num_jobs; ++j) {
-        for (int o = 0; o < shop->jobs[j].num_operations; ++o) {
-            shop->jobs[j].operations[o].start_time = -1;
-            shop->jobs[j].operations[o].end_time = -1;
-        }
+
+void validate_machine_schedule(const Schedule* schedule, int machine_id) {
+    const MachineSchedule* ms = &schedule->machine_schedules[machine_id];
+    int last_end_time = -1;
+
+    for (int i = 0; i < ms->count; ++i) {
+        const ScheduledOp* s = &ms->scheduled_op[i];
+        const Operation* op = &schedule->jobs[s->job_id].ops[s->op_index];
+
+        // Assert correct duration
+        assert(s->end_time - s->start_time == op->duration);
+
+        // Assert no overlap
+        assert(s->start_time >= last_end_time);
+
+        last_end_time = s->end_time;
     }
 
-    bool updated;
-    do {
-        updated = false;
-
-        for (int j = 0; j < shop->num_jobs; ++j) {
-            for (int o = 0; o < shop->jobs[j].num_operations; ++o) {
-                Operation* op = &shop->jobs[j].operations[o];
-
-                int earliest_start = 0;
-                // Job order constraint
-                if (o > 0) {
-                    Operation* prev = &shop->jobs[j].operations[o - 1];
-                    if (prev->end_time == -1) continue;
-                    if (prev->end_time > earliest_start)
-                        earliest_start = prev->end_time;
-                }
-                // Machine order constraint
-                MachineSchedule* ms = &machines[op->machine_id];
-                for (int idx = 0; idx < ms->num_operations; ++idx) {
-                    if (ms->operations[idx].job_id == op->job_id &&
-                        ms->operations[idx].machine_id == op->machine_id) {
-
-                        if (idx > 0) {
-                            Operation* prev_machine_op = &ms->operations[idx - 1];
-
-                            // Lookup real pointer to get the correct end time
-                            Operation* real_prev_op = NULL;
-                            for (int pj = 0; pj < shop->num_jobs; ++pj) {
-                                for (int po = 0; po < shop->jobs[pj].num_operations; ++po) {
-                                    Operation* candidate = &shop->jobs[pj].operations[po];
-                                    if (candidate->job_id == prev_machine_op->job_id &&
-                                        candidate->machine_id == prev_machine_op->machine_id) {
-                                        real_prev_op = candidate;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (!real_prev_op || real_prev_op->end_time == -1)
-                                continue;
-
-                            if (real_prev_op->end_time > earliest_start)
-                                earliest_start = real_prev_op->end_time;
-                        }
-
-                        break;
-                    }
-                }
-
-                // If not set or can be improved
-                if (op->start_time == -1 || op->start_time != earliest_start) {
-                    op->start_time = earliest_start;
-                    op->end_time = earliest_start + op->duration;
-                    updated = true;
-                }
-            }
-        }
-    } while (updated);
+    printf("\nSchedule for machine %d is valid.\n", machine_id);
 }
 
 int main() {
-    JobShop shop;
-    MachineSchedule machines[MAX_MACHINES];
-    
-    // Load jobs and operations (manual for now, file-based later)
-    load_instance(&shop);
-    initialize_machines_schedules(&shop, machines);
-    assing_operations_to_machines(&shop, machines);
 
-    printf("Initialized machine schedules with operation counts:\n");
-    for (int i = 0; i < shop.num_machines; i++) {
-        printf("Machine %d: %d operations\n", i, machines[i].num_operations);
-    }
+    Schedule schedule;
 
-    //## Testing Scheduling respecting only job order##
+    MachineOpStub ops[MAX_OPS_PER_MACHINE]; 
 
-    bool scheduled_machines[MAX_MACHINES] = { false }; //  unscheduled all machines (for now)
+    const char* jss_filename = "ft06.jss";
 
-    compute_earliest_start_times(&shop, machines);
-    printf("\nEarliest start times:\n");
-    for (int j = 0; j < shop.num_jobs; ++j) {
-        printf("Job %d:\n", j);
-        for (int o = 0; o < shop.jobs[j].num_operations; ++o) {
-            Operation op = shop.jobs[j].operations[o];
-            printf("  Op on M%d: start=%d, end=%d\n", op.machine_id, op.start_time, op.end_time);
-        }
-    }
-    
-    print_gantt_chart(shop);
+    int num_jobs = 0, num_machines = 0;
+    int** matrix = load_and_print_jssp_matrix(jss_filename, &num_jobs, &num_machines);
+
+    printf("\n");
+
+    load_matrix_into_schedule(matrix, num_jobs, num_machines, &schedule);
+
+    free_matrix(matrix, num_jobs);
+
+    debug_print_loaded_schedule(&schedule);
+
+    int machine_id = 0;  
+    int count = 0;
+
+    collect_ops_for_machine(&schedule, machine_id, ops, &count);
+
+    debug_print_collected_ops(ops, count);
+
+    compute_earliest_start_times(&schedule, ops, count);  // initial EST = 0 for now
+
+    schedule_machine_ops(&schedule, machine_id, ops, count);
+
+    debug_print_machine_schedule(&schedule, machine_id);
+
+    validate_machine_schedule(&schedule, machine_id);
+
+
     return 0;
 }
 
