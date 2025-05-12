@@ -30,11 +30,11 @@ static void extract_subdir_from_filename(const char* filename, char* subdir, siz
  * @param num_machines Pointer to store the number of machines.
  * @return A pointer to the dynamically allocated 2D array representing the matrix, or NULL on failure.
  */
-int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines) {
+int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines, int* optimum_makespan) {
     char subdir[32];
     extract_subdir_from_filename(filename, subdir, sizeof(subdir));
 
-    char fullpath[256];
+    char fullpath[PATH_LEN];
     snprintf(fullpath, sizeof(fullpath), "%s%s/%s", JSSP_ROOT, subdir, filename);
 
     printf("Looking for file at path: %s\n", fullpath);
@@ -45,7 +45,21 @@ int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines) {
         return NULL;
     }
 
-    char line[256];
+    // Lookup optimum value if requested
+    if (optimum_makespan != NULL) {
+        char optimum_path[256];
+        snprintf(optimum_path, sizeof(optimum_path), "%s%s/optimum/optimum.csv", JSSP_ROOT, subdir);
+        int val = read_optimum_file(optimum_path, filename, optimum_makespan);
+        if (val != 0) {
+            fprintf(stderr, "Warning: Optimum value not found for %s in %s\n", filename, optimum_path);
+            *optimum_makespan = -1;
+        }
+        else {
+            printf("Found optimum makespan: %d\n", *optimum_makespan);
+        }
+    }
+
+    char line[PATH_LEN];
     while (fgets(line, sizeof(line), file)) {
         if (line[0] != '#') {
             sscanf(line, "%d %d", num_jobs, num_machines);
@@ -88,7 +102,7 @@ void free_matrix(int** matrix, int rows) {
 }
 
 void print_current_working_directory() {
-    char cwd[256];
+    char cwd[PATH_LEN];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
         printf("\nCurrent working dir: %s\n", cwd);
     }
@@ -96,3 +110,34 @@ void print_current_working_directory() {
         perror("getcwd() error");
     }
 }
+
+int read_optimum_file(const char* path, const char* target_filename, int* optimum_out) {
+    FILE* file = fopen(path, "r");
+    if (!file) {
+        perror("Could not open optimum.csv");
+        return -1;
+    }
+
+    char line[128];
+    // Skip header
+    if (!fgets(line, sizeof(line), file)) {
+        fclose(file);
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), file)) {
+        char fname[64];
+        int makespan;
+        if (sscanf(line, "%63[^,],%d", fname, &makespan) == 2) {
+            if (strcmp(fname, target_filename) == 0) {
+                *optimum_out = makespan;
+                fclose(file);
+                return 0;
+            }
+        }
+    }
+
+    fclose(file);
+    return -1;  // Not found
+}
+
