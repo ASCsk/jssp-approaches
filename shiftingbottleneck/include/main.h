@@ -4,6 +4,8 @@
 #define MAX_JOBS 50
 #define MAX_MACHINES 50
 #define MAX_OPS_PER_MACHINE (MAX_JOBS)
+#define MAX_OPERATIONS (MAX_JOBS * MAX_MACHINES)
+#define MAX_EDGES_PER_NODE (MAX_JOBS)  // upper bound on successors/predecessors
 
 typedef struct {
     int machine;
@@ -23,9 +25,29 @@ typedef struct {
     int machine_ready[MAX_MACHINES];
 } Schedule;
 
-void parse_matrix_to_struct(int** matrix, JSSPData* data);
-void compute_shifting_bottleneck(JSSPData* data, Schedule* sched);
-void print_schedule(Schedule* sched, JSSPData* data);
-void print_schedule_metrics(Schedule* sched, JSSPData* data);
+typedef struct {
+    int job_id;         // Job index (0 to num_jobs-1)
+    int op_index;       // Operation index within job (0 to num_machines-1)
+    int machine;        // Machine assigned to this operation
+    int duration;       // Duration of the operation
+
+    int successors[MAX_EDGES_PER_NODE];     // Indices of successor nodes in global array
+    int num_successors;
+
+    int predecessors[MAX_EDGES_PER_NODE];   // Indices of predecessor nodes in global array
+    int num_predecessors;
+
+    int earliest_start;    // For scheduling calculations
+    int latest_finish;
+} OperationNode;
+
+// This way we have a list of MachineOps (length = num_machines) where each entry contains the indices of operations that run on that machine.
+typedef struct {
+    int machine_id;
+    int op_indices[MAX_OPERATIONS];  // Indices into OperationNode[]
+    int num_ops;
+} MachineOps;
+
+// Function prototypes (soon)
 
 #endif

@@ -1,0 +1,120 @@
+#include "debug.h"
+#include "file_utils.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+int** load_and_print_jssp_matrix(const char* jss_filename, int* num_jobs, int* num_machines, int* optimum_value) {
+    int** matrix = load_jssp_matrix(jss_filename, num_jobs, num_machines, optimum_value);
+
+    if (*num_jobs > MAX_JOBS) {
+        fprintf(stderr, "Error: Number of jobs exceeds the maximum allowed (%d). Found %d jobs.\n", MAX_JOBS, *num_jobs);
+        exit(1);
+    }
+
+    if (*num_machines > MAX_MACHINES) {
+        fprintf(stderr, "Error: Number of machines exceeds the maximum allowed (%d). Found %d machines.\n", MAX_MACHINES, *num_machines);
+        exit(1);
+    }
+
+    if (matrix) {
+        printf("Loaded JSSP matrix: %d jobs, %d machines\n", *num_jobs, *num_machines);
+        printf("Optimum makespan: %d\n", *optimum_value);
+        print_matrix(matrix, *num_jobs, *num_machines * 2);
+    }
+    else {
+        fprintf(stderr, "Failed to load JSSP matrix from '%s'\n", jss_filename);
+    }
+    return matrix;
+}
+
+void print_jssp_data(const JSSPData* data) {
+    printf("JSSP Instance: %d jobs, %d machines\n", data->num_jobs, data->num_machines);
+    for (int i = 0; i < data->num_jobs; ++i) {
+        printf("Job %d:\n", i);
+        for (int j = 0; j < data->num_machines; ++j) {
+            printf("  Op %d: Machine %d, Duration %d\n",
+                j,
+                data->operations[i][j].machine,
+                data->operations[i][j].duration);
+        }
+    }
+}
+
+void print_schedule(Schedule* sched, JSSPData* data) {
+    printf("\n--- Final Schedule ---\n");
+    for (int i = 0; i < data->num_jobs; ++i) {
+        printf("Job %d:\n", i);
+        for (int j = 0; j < data->num_machines; ++j) {
+            Task t = data->operations[i][j];
+            int start = sched->start_time[i][j];
+            int end = sched->end_time[i][j];
+            printf("  Op %d (Machine %d): Start=%2d End=%2d Duration=%2d\n",
+                j, t.machine, start, end, t.duration);
+        }
+        printf("\n");
+    }
+}
+
+void print_schedule_metrics(Schedule* sched, JSSPData* data) {
+    int makespan = 0;
+    int total_idle_time = 0;
+
+    printf("=== Schedule Metrics ===\n");
+
+    // Compute makespan by looking for the latest end time across all jobs and machines
+    for (int i = 0; i < data->num_jobs; ++i) {
+        for (int j = 0; j < data->num_machines; ++j) {
+            if (sched->end_time[i][j] > makespan) {
+                makespan = sched->end_time[i][j];
+            }
+        }
+    }
+    printf("Makespan: %d\n", makespan);
+
+    // Per-machine metrics
+    for (int m = 0; m < data->num_machines; ++m) {
+        int busy_time = 0;
+
+        // Find all tasks assigned to machine m
+        for (int j = 0; j < data->num_jobs; ++j) {
+            for (int o = 0; o < data->num_machines; ++o) {
+                if (data->operations[j][o].machine == m) {
+                    busy_time += data->operations[j][o].duration;
+                }
+            }
+        }
+
+        int idle_time = makespan - busy_time;
+        total_idle_time += idle_time;
+        float utilization = (makespan > 0) ? (100.0f * busy_time / makespan) : 0.0f;
+
+        printf("Machine %d:\n", m);
+        printf("  Busy time: %d\n", busy_time);
+        printf("  Idle time: %d\n", idle_time);
+        printf("  Utilization: %.2f%%\n", utilization);
+    }
+
+    printf("Total idle time (all machines): %d\n", total_idle_time);
+}
+
+void print_disjunctive_graph(OperationNode* nodes, int num_operations) {
+    printf("\n=== Disjunctive Graph ===\n");
+
+    for (int i = 0; i < num_operations; ++i) {
+        OperationNode* node = &nodes[i];
+        printf("Op %2d (Job %d, Op %d, Machine %d, Dur %2d):\n",
+            i, node->job_id, node->op_index, node->machine, node->duration);
+
+        printf("  Predecessors (%d): ", node->num_predecessors);
+        for (int j = 0; j < node->num_predecessors; ++j) {
+            printf("%d ", node->predecessors[j]);
+        }
+        printf("\n");
+
+        printf("  Successors (%d):   ", node->num_successors);
+        for (int j = 0; j < node->num_successors; ++j) {
+            printf("%d ", node->successors[j]);
+        }
+        printf("\n\n");
+    }
+}
