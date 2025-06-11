@@ -6,6 +6,7 @@
 #define MAX_OPS_PER_MACHINE (MAX_JOBS)
 #define MAX_OPERATIONS (MAX_JOBS * MAX_MACHINES)
 #define MAX_EDGES_PER_NODE (MAX_JOBS)  // upper bound on successors/predecessors
+#define MAX_DISJ_ARCS (MAX_MACHINES * MAX_JOBS * (MAX_JOBS - 1))
 
 typedef struct {
     int machine;
@@ -47,6 +48,14 @@ typedef struct {
     int op_indices[MAX_OPERATIONS];  // Indices into OperationNode[]
     int num_ops;
 } MachineOps;
+
+typedef struct {
+    struct {
+        int from;
+        int to;
+    } arcs[MAX_DISJ_ARCS];
+    int num_arcs;
+} GraphData;
 
 // Function prototypes (soon)
 

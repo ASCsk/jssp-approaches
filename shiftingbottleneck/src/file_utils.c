@@ -91,8 +91,8 @@ int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines, i
 
 void print_matrix(int** matrix, int rows, int cols) {
     for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            printf("%2d ", matrix[i][j]);
+        for (int j = 0; j < cols; j += 2) {
+            printf("M%d T%d ", matrix[i][j], matrix[i][j + 1]);
         }
         printf("\n");
     }

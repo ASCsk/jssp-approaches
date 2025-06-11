@@ -7,6 +7,24 @@ A collection of implementations and approaches to solve the Job Shop Scheduling 
 The goal is to schedule one machine at a time, always choosing the one that's currently the biggest bottleneck — i.e., the one causing the most delay in the overall schedule.
 - The machine causing the most delay in the context of the Shifting Bottleneck Procedure is the one that, when optimally scheduled in isolation (given current constraints), still contributes the most to the overall makespan — not simply the one with the highest local makespan.
 
+Each job's operations must be done in order (precedence).
+
+Operations sharing the same machine cannot overlap.
+
+E.G.
+
+0  3  1  2  2  2
+0  2  2  1  1  3
+1  4  2  3  0  1
+
+Job 0:
+
+Op1: Machine 0, Time 3 Op2: Machine 1, Time 2 Op3: Machine 2, Time 2
+
+Job 1: Op1: Machine 0, Time 2 Op2: Machine 2, Time 1 Op3: Machine 1, Time 3
+
+Job 2: Op1: Machine 1, Time 4 Op2: Machine 2, Time 3 Op3: Machine 0, Time 1
+
 ## Step-by-step Breakdown
 
 ### Key Variables
@@ -175,6 +193,17 @@ Ops on M3:
 - Respect: Job 1, Op 0 → Job 1, Op 1
 - Choose: Should Job 0’s M3 op happen before or after Job 1’s?
 ```
+
+Worst-case scenario:
+If:
+J = MAX_JOBS
+M = MAX_MACHINES
+Each job has one operation on each machine, so:
+
+There are J operations per machine (1 op per job per machine).
+That means k = J for every machine.
+So, worst-case disjunctive arcs per machine = J * (J - 1)
+Total across all machines = M * J * (J - 1)
 
 ## Brute Force Permutation with EST Constraints
 What it does:

@@ -53,6 +53,16 @@ void print_schedule(Schedule* sched, JSSPData* data) {
         }
         printf("\n");
     }
+
+    int makespan = 0;
+    for (int i = 0; i < data->num_jobs; ++i) {
+        for (int j = 0; j < data->num_machines; ++j) {
+            if (sched->end_time[i][j] > makespan) {
+                makespan = sched->end_time[i][j];
+            }
+        }
+    }
+    printf("Final makespan: %d\n", makespan);
 }
 
 void print_schedule_metrics(Schedule* sched, JSSPData* data) {
@@ -116,5 +126,26 @@ void print_disjunctive_graph(OperationNode* nodes, int num_operations) {
             printf("%d ", node->successors[j]);
         }
         printf("\n\n");
+    }
+}
+
+void print_disjunctive_candidates(const GraphData* data) {
+    printf("GraphData: %d arcs\n", data->num_arcs);
+    for (int i = 0; i < data->num_arcs; ++i) {
+        printf("  Arc %3d: from %d to %d\n", i, data->arcs[i].from, data->arcs[i].to);
+    }
+    /**
+     * Detect if the arcs really come in pairs (bidirectional).
+     * Detect duplicates.
+     * Print total distinct edges (half of arcs).
+     */
+    for (int i = 0; i < data->num_arcs; i += 2) {
+        int from1 = data->arcs[i].from;
+        int to1 = data->arcs[i].to;
+        int from2 = data->arcs[i + 1].from;
+        int to2 = data->arcs[i + 1].to;
+        if (!(from1 == to2 && to1 == from2)) {
+            printf("WARNING: arcs %d and %d are not symmetric!\n", i, i + 1);
+        }
     }
 }
