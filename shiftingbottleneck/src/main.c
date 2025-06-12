@@ -23,7 +23,7 @@ void initialize_schedule_data(int** matrix, int num_jobs, int num_machines, JSSP
 
 void assert_valid_edge(int from, int to) {
     if (from == to) {
-        printf("❌ Error: Attempted to add self-loop from Op %d to itself\n", from);
+        printf("Error: Attempted to add self-loop from Op %d to itself\n", from);
         exit(1);
     }
 }
@@ -200,77 +200,6 @@ void compute_earliest_start_times(OperationNode* nodes, int  num_operations) {
     }
 }
 
-// int find_bottleneck_machine_by_est(OperationNode* nodes, int num_operations, int num_machines) {
-//     int max_makespan = -1;
-//     int bottleneck = -1;
-
-//     for (int m = 0; m < num_machines; ++m) {
-//         int makespan = 0;
-//         for (int i = 0; i < num_operations; ++i) {
-//             if (nodes[i].machine == m) {
-//                 int finish = nodes[i].earliest_start + nodes[i].duration;
-//                 if (finish > makespan) {
-//                     makespan = finish;
-//                 }
-//             }
-//         }
-//         if (makespan > max_makespan) {
-//             max_makespan = makespan;
-//             bottleneck = m;
-//         }
-//     }
-//     return bottleneck;
-// }
-
-
-
-// void add_disjunctive_arc(GraphData* graph, int from, int to) {
-//     if (graph->num_arcs >= MAX_DISJ_ARCS) {
-//         // Optional: handle overflow
-//         return;
-//     }
-
-//     graph->arcs[graph->num_arcs].from = from;
-//     graph->arcs[graph->num_arcs].to = to;
-//     graph->num_arcs++;
-// }
-
-// void store_disjunctive_candidates(OperationNode* nodes, int total_operations, GraphData* data) {
-//     static int machine_buckets[MAX_MACHINES][MAX_OPS_PER_MACHINE];
-//     static int bucket_sizes[MAX_MACHINES];
-//     // Reset bucket sizes
-//     for (int m = 0; m < MAX_MACHINES; m++) {
-//         bucket_sizes[m] = 0;
-//     }
-
-//     // Fill machine buckets
-//     for (int i = 0; i < total_operations; i++) {
-//         int machine = nodes[i].machine;
-//         int index = bucket_sizes[machine]++;
-//         machine_buckets[machine][index] = i;
-//     }
-
-//     // Store disjunctive arcs for each machine
-//     for (int m = 0; m < MAX_MACHINES; m++) {
-//         int size = bucket_sizes[m];
-
-//         for (int i = 0; i < size - 1; i++) {
-//             for (int j = i + 1; j < size; j++) {
-//                 int op_i = machine_buckets[m][i];
-//                 int op_j = machine_buckets[m][j];
-
-//                 add_disjunctive_arc(data, op_i, op_j);
-//                 add_disjunctive_arc(data, op_j, op_i);
-//             }
-//         }
-
-//         if (data->num_arcs >= MAX_DISJ_ARCS) {
-//             printf("Warning: graph arcs overflow!\n");
-//             return;
-//         }
-//     }
-// }
-
 void fill_schedule_from_nodes(Schedule* sched, OperationNode* nodes, JSSPData* data) {
     int num_jobs = data->num_jobs;
     int num_machines = data->num_machines;
@@ -312,10 +241,6 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
     for (int scheduled = 0; scheduled < num_machines; scheduled++) {
         static GraphData graph = { .num_arcs = 0 };
 
-        // print_disjunctive_graph(nodes, num_operations); // DEBUG 
-
-        // store_disjunctive_candidates(nodes, num_operations, &graph);
-
         int bottleneck = find_bottleneck_machine(data, machine_scheduled);
 
         printf("Step %d: Bottleneck = Machine %d\n", scheduled, bottleneck);
@@ -348,11 +273,6 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
             printf("Op %2d (J%d, M%d): EST = %d\n",
                 i, nodes[i].job_id, nodes[i].machine, nodes[i].earliest_start);
         }
-
-        // if (has_cycle(nodes, num_operations)) {
-        //     printf("Cycle detected after scheduling machine %d, aborting.\n", bottleneck);
-        //     return;
-        // }
 
     }
 
