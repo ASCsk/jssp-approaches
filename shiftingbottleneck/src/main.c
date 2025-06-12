@@ -21,6 +21,86 @@ void initialize_schedule_data(int** matrix, int num_jobs, int num_machines, JSSP
     }
 }
 
+void assert_valid_edge(int from, int to) {
+    if (from == to) {
+        printf("❌ Error: Attempted to add self-loop from Op %d to itself\n", from);
+        exit(1);
+    }
+}
+
+// Helper to get the index in nodes[] from job and op index
+int op_node_index(int job, int op, int num_machines) {
+    return job * num_machines + op;
+}
+
+bool has_successor(OperationNode* node, int succ_id) {
+    for (int i = 0; i < node->num_successors; ++i) {
+        if (node->successors[i] == succ_id)
+            return true;
+    }
+    return false;
+}
+
+bool has_predecessor(OperationNode* node, int pred_id) {
+    for (int i = 0; i < node->num_predecessors; ++i) {
+        if (node->predecessors[i] == pred_id)
+            return true;
+    }
+    return false;
+}
+
+void add_successor_unique(OperationNode* node, int succ_id) {
+    if (succ_id == op_node_index(node->job_id, node->op_index, MAX_MACHINES)) return;
+    if (!has_successor(node, succ_id)) {
+        node->successors[node->num_successors++] = succ_id;
+    }
+}
+
+void add_predecessor_unique(OperationNode* node, int pred_id) {
+    if (pred_id == op_node_index(node->job_id, node->op_index, MAX_MACHINES)) return;
+    if (!has_predecessor(node, pred_id)) {
+        node->predecessors[node->num_predecessors++] = pred_id;
+    }
+}
+
+// This does not and should not contemplate the disjunctive edges from the beggining.
+void build_disjunctive_graph(JSSPData* data, OperationNode* nodes, int num_operations) {
+    int num_jobs = data->num_jobs;
+    int num_machines = data->num_machines;
+
+    // Initialize nodes with operations data
+    for (int job = 0; job < num_jobs; job++) {
+        for (int op = 0; op < num_machines; op++) {
+            int idx = op_node_index(job, op, num_machines);
+            Task t = data->operations[job][op];
+
+            nodes[idx].job_id = job;
+            nodes[idx].op_index = op;
+            nodes[idx].machine = t.machine;
+            nodes[idx].duration = t.duration;
+
+            nodes[idx].num_successors = 0;
+            nodes[idx].num_predecessors = 0;
+
+            nodes[idx].earliest_start = 0;
+            nodes[idx].latest_finish = 0;
+        }
+    }
+
+    // Add conjunctive edges (job order)
+    for (int job = 0; job < num_jobs; job++) {
+        for (int op = 0; op < num_machines - 1; op++) {
+            int from = op_node_index(job, op, num_machines);
+            int to = op_node_index(job, op + 1, num_machines);
+
+            // assert_valid_edge(from, to);
+            // from -> to
+            add_successor_unique(&nodes[from], to);
+            add_predecessor_unique(&nodes[to], from);
+        }
+    }
+}
+
 int find_bottleneck_machine(JSSPData* data, bool machine_scheduled[MAX_MACHINES]) {
     int num_machines = data->num_machines;
     int max_makespan = -1;
@@ -53,126 +133,6 @@ int find_bottleneck_machine(JSSPData* data, bool machine_scheduled[MAX_MACHINES]
     return bottleneck;
 }
 
-// int find_bottleneck_machine_by_est(OperationNode* nodes, int num_operations, int num_machines) {
-//     int max_makespan = -1;
-//     int bottleneck = -1;
-
-//     for (int m = 0; m < num_machines; ++m) {
-//         int makespan = 0;
-//         for (int i = 0; i < num_operations; ++i) {
-//             if (nodes[i].machine == m) {
-//                 int finish = nodes[i].earliest_start + nodes[i].duration;
-//                 if (finish > makespan) {
-//                     makespan = finish;
-//                 }
-//             }
-//         }
-//         if (makespan > max_makespan) {
-//             max_makespan = makespan;
-//             bottleneck = m;
-//         }
-//     }
-//     return bottleneck;
-// }
-
-bool has_successor(OperationNode* node, int succ_id) {
-    for (int i = 0; i < node->num_successors; ++i) {
-        if (node->successors[i] == succ_id)
-            return true;
-    }
-    return false;
-}
-
-bool has_predecessor(OperationNode* node, int pred_id) {
-    for (int i = 0; i < node->num_predecessors; ++i) {
-        if (node->predecessors[i] == pred_id)
-            return true;
-    }
-    return false;
-}
-
-void add_successor_unique(OperationNode* node, int succ_id) {
-    if (!has_successor(node, succ_id)) {
-        node->successors[node->num_successors++] = succ_id;
-    }
-}
-
-void add_predecessor_unique(OperationNode* node, int pred_id) {
-    if (!has_predecessor(node, pred_id)) {
-        node->predecessors[node->num_predecessors++] = pred_id;
-    }
-}
-
-// Helper to get the index in nodes[] from job and op index
-int op_node_index(int job, int op, int num_machines) {
-    return job * num_machines + op;
-}
-// This does not and should not contemplate the disjunctive edges from the beggining.
-void build_disjunctive_graph(JSSPData* data, OperationNode* nodes, int num_operations) {
-    int num_jobs = data->num_jobs;
-    int num_machines = data->num_machines;
-
-    // Initialize nodes with operations data
-    for (int job = 0; job < num_jobs; job++) {
-        for (int op = 0; op < num_machines; op++) {
-            int idx = op_node_index(job, op, num_machines);
-            Task t = data->operations[job][op];
-
-            nodes[idx].job_id = job;
-            nodes[idx].op_index = op;
-            nodes[idx].machine = t.machine;
-            nodes[idx].duration = t.duration;
-
-            nodes[idx].num_successors = 0;
-            nodes[idx].num_predecessors = 0;
-
-            nodes[idx].earliest_start = 0;
-            nodes[idx].latest_finish = 0;
-        }
-    }
-
-    // Add conjunctive edges (job order)
-    for (int job = 0; job < num_jobs; job++) {
-        for (int op = 0; op < num_machines - 1; op++) {
-            int from = op_node_index(job, op, num_machines);
-            int to = op_node_index(job, op + 1, num_machines);
-
-            // from -> to
-            add_successor_unique(&nodes[from], to);
-            add_predecessor_unique(&nodes[to], from);    
-        }
-    }
-}
-
-// void add_disjunctive_arcs(OperationNode* nodes, int num_operations, bool* machine_scheduled) {
-//     for (int i = 0; i < num_operations; ++i) {
-//         for (int j = i + 1; j < num_operations; ++j) {
-//             // Same machine, not yet scheduled, different jobs
-//             int m = nodes[i].machine;
-//             if (m == nodes[j].machine &&
-//                 !machine_scheduled[m] &&
-//                 nodes[i].job_id != nodes[j].job_id) {
-
-//                 // Add undirected disjunctive arcs (each operation sees the other as a possible successor)
-//                 nodes[i].successors[nodes[i].num_successors++] = j;
-//                 nodes[j].successors[nodes[j].num_successors++] = i;
-
-//                 nodes[i].predecessors[nodes[i].num_predecessors++] = j;
-//                 nodes[j].predecessors[nodes[j].num_predecessors++] = i;
-//             }
-//         }
-//     }
-// }
-
-/**
- * Extract all operations assigned to machine m.
- *
- * @param nodes Global array of OperationNode
- * @param num_operations Total number of operations
- * @param m Machine ID to filter by
- * @param ops_on_machine Output array to store indices of operations on machine m (pre-allocated)
- * @return Number of operations assigned to machine m
- */
 int extract_operations_on_machine(OperationNode* nodes, int num_operations, int m, int* ops_on_machine) {
     int count = 0;
     for (int i = 0; i < num_operations; i++) {
@@ -183,42 +143,22 @@ int extract_operations_on_machine(OperationNode* nodes, int num_operations, int 
     return count;
 }
 
-/**
- * has_cycle validation stuff
- */
-// bool dfs_visit(OperationNode* nodes, int index, bool* visited, bool* rec_stack) {
-//     if (rec_stack[index]) return true;  // cycle detected
-//     if (visited[index]) return false;   // already processed
+void orient_disjunctive_arcs(OperationNode* nodes,
+    int machine_id,
+    int num_operations,
+    int* ops_on_machine,
+    int num_ops,
+    int* best_sequence) {
+    for (int i = 0; i < num_ops - 1; i++) {
+        int from = ops_on_machine[best_sequence[i]];
+        int to = ops_on_machine[best_sequence[i + 1]];
 
-//     visited[index] = true;
-//     rec_stack[index] = true;
+        // assert_valid_edge(from, to);
 
-//     OperationNode* node = &nodes[index];
-//     for (int i = 0; i < node->num_successors; ++i) {
-//         int succ_idx = node->successors[i];
-//         if (dfs_visit(nodes, succ_idx, visited, rec_stack)) {
-//             return true;
-//         }
-//     }
-
-//     rec_stack[index] = false;
-//     return false;
-// }
-
-// bool has_cycle(OperationNode* nodes, int  num_operations) {
-//     bool visited[MAX_OPERATIONS] = { false };
-//     bool rec_stack[MAX_OPERATIONS] = { false };
-
-//     for (int i = 0; i < num_operations; ++i) {
-//         if (!visited[i]) {
-//             if (dfs_visit(nodes, i, visited, rec_stack)) {
-//                 return true;
-//             }
-//         }
-//     }
-
-//     return false;
-// }
+        add_successor_unique(&nodes[from], to);
+        add_predecessor_unique(&nodes[to], from);
+    }
+}
 
 void compute_earliest_start_times(OperationNode* nodes, int  num_operations) {
     int in_degree[MAX_OPERATIONS] = { 0 };
@@ -238,7 +178,6 @@ void compute_earliest_start_times(OperationNode* nodes, int  num_operations) {
         }
     }
 
-    // Kahn's algorithm
     while (front < rear) {
         int u_idx = queue[front++];
         OperationNode* u = &nodes[u_idx];
@@ -261,20 +200,76 @@ void compute_earliest_start_times(OperationNode* nodes, int  num_operations) {
     }
 }
 
-void orient_disjunctive_arcs(OperationNode* nodes,
-    int machine_id,
-    int num_operations,
-    int* ops_on_machine,
-    int num_ops,
-    int* best_sequence) {
-    for (int i = 0; i < num_ops - 1; i++) {
-        int from_idx = ops_on_machine[best_sequence[i]];
-        int to_idx = ops_on_machine[best_sequence[i + 1]];
+// int find_bottleneck_machine_by_est(OperationNode* nodes, int num_operations, int num_machines) {
+//     int max_makespan = -1;
+//     int bottleneck = -1;
 
-        add_successor_unique(&nodes[from_idx], to_idx);
-        add_predecessor_unique(&nodes[to_idx], from_idx);
-    }
-}
+//     for (int m = 0; m < num_machines; ++m) {
+//         int makespan = 0;
+//         for (int i = 0; i < num_operations; ++i) {
+//             if (nodes[i].machine == m) {
+//                 int finish = nodes[i].earliest_start + nodes[i].duration;
+//                 if (finish > makespan) {
+//                     makespan = finish;
+//                 }
+//             }
+//         }
+//         if (makespan > max_makespan) {
+//             max_makespan = makespan;
+//             bottleneck = m;
+//         }
+//     }
+//     return bottleneck;
+// }
+
+
+
+// void add_disjunctive_arc(GraphData* graph, int from, int to) {
+//     if (graph->num_arcs >= MAX_DISJ_ARCS) {
+//         // Optional: handle overflow
+//         return;
+//     }
+
+//     graph->arcs[graph->num_arcs].from = from;
+//     graph->arcs[graph->num_arcs].to = to;
+//     graph->num_arcs++;
+// }
+
+// void store_disjunctive_candidates(OperationNode* nodes, int total_operations, GraphData* data) {
+//     static int machine_buckets[MAX_MACHINES][MAX_OPS_PER_MACHINE];
+//     static int bucket_sizes[MAX_MACHINES];
+//     // Reset bucket sizes
+//     for (int m = 0; m < MAX_MACHINES; m++) {
+//         bucket_sizes[m] = 0;
+//     }
+
+//     // Fill machine buckets
+//     for (int i = 0; i < total_operations; i++) {
+//         int machine = nodes[i].machine;
+//         int index = bucket_sizes[machine]++;
+//         machine_buckets[machine][index] = i;
+//     }
+
+//     // Store disjunctive arcs for each machine
+//     for (int m = 0; m < MAX_MACHINES; m++) {
+//         int size = bucket_sizes[m];
+
+//         for (int i = 0; i < size - 1; i++) {
+//             for (int j = i + 1; j < size; j++) {
+//                 int op_i = machine_buckets[m][i];
+//                 int op_j = machine_buckets[m][j];
+
+//                 add_disjunctive_arc(data, op_i, op_j);
+//                 add_disjunctive_arc(data, op_j, op_i);
+//             }
+//         }
+
+//         if (data->num_arcs >= MAX_DISJ_ARCS) {
+//             printf("Warning: graph arcs overflow!\n");
+//             return;
+//         }
+//     }
+// }
 
 void fill_schedule_from_nodes(Schedule* sched, OperationNode* nodes, JSSPData* data) {
     int num_jobs = data->num_jobs;
@@ -305,54 +300,6 @@ void fill_schedule_from_nodes(Schedule* sched, OperationNode* nodes, JSSPData* d
     }
 }
 
-void add_disjunctive_arc(GraphData* graph, int from, int to) {
-    if (graph->num_arcs >= MAX_DISJ_ARCS) {
-        // Optional: handle overflow
-        return;
-    }
-
-    graph->arcs[graph->num_arcs].from = from;
-    graph->arcs[graph->num_arcs].to = to;
-    graph->num_arcs++;
-}
-
-void store_disjunctive_candidates(OperationNode* nodes, int total_operations, GraphData* data) {
-    static int machine_buckets[MAX_MACHINES][MAX_OPS_PER_MACHINE];
-    static int bucket_sizes[MAX_MACHINES];
-    // Reset bucket sizes
-    for (int m = 0; m < MAX_MACHINES; m++) {
-        bucket_sizes[m] = 0;
-    }
-
-    // Fill machine buckets
-    for (int i = 0; i < total_operations; i++) {
-        int machine = nodes[i].machine;
-        int index = bucket_sizes[machine]++;
-        machine_buckets[machine][index] = i;
-    }
-
-    // Store disjunctive arcs for each machine
-    for (int m = 0; m < MAX_MACHINES; m++) {
-        int size = bucket_sizes[m];
-
-        for (int i = 0; i < size - 1; i++) {
-            for (int j = i + 1; j < size; j++) {
-                int op_i = machine_buckets[m][i];
-                int op_j = machine_buckets[m][j];
-
-                add_disjunctive_arc(data, op_i, op_j);
-                add_disjunctive_arc(data, op_j, op_i);
-            }
-        }
-
-        if (data->num_arcs >= MAX_DISJ_ARCS) {
-            printf("Warning: graph arcs overflow!\n");
-            return;
-        }
-    }
-}
-
-
 void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
     int num_jobs = data->num_jobs;
     int num_machines = data->num_machines;
@@ -365,16 +312,12 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
     for (int scheduled = 0; scheduled < num_machines; scheduled++) {
         static GraphData graph = { .num_arcs = 0 };
 
-        // build_disjunctive_graph(data, nodes, num_operations);
+        // print_disjunctive_graph(nodes, num_operations); // DEBUG 
 
-        print_disjunctive_graph(nodes, num_operations); // DEBUG 
-
-        store_disjunctive_candidates(nodes, num_operations, &graph);
-
-        // print_disjunctive_candidates(&graph); // DEBUG 
+        // store_disjunctive_candidates(nodes, num_operations, &graph);
 
         int bottleneck = find_bottleneck_machine(data, machine_scheduled);
-        // int bottleneck = find_bottleneck_machine_by_est(nodes, num_operations, num_machines);
+
         printf("Step %d: Bottleneck = Machine %d\n", scheduled, bottleneck);
 
         // Extract ops on bottleneck machine
@@ -411,9 +354,6 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
         //     return;
         // }
 
-        // add_disjunctive_arcs(nodes, num_operations, machine_scheduled);
-
-        // print_disjunctive_graph(nodes, num_operations); // DEBUG 
     }
 
     fill_schedule_from_nodes(sched, nodes, data);
@@ -421,7 +361,7 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
 
 
 int main() {
-    const char* jss_filename = "ft06.jss";
+    const char* jss_filename = "ft03.jss";
 
     int num_jobs = 0, num_machines = 0, optimum_value = -1;
 
@@ -432,14 +372,14 @@ int main() {
 
     initialize_schedule_data(matrix, num_jobs, num_machines, &data);
 
-    // print_jssp_data(&data); // <- correct untill here
+    free_matrix(matrix, num_jobs);
+
+    // print_jssp_data(&data); // DEBUG
 
     Schedule sched;
     compute_shifting_bottleneck(&data, &sched);
 
-    print_schedule(&sched, &data);
-
-    free_matrix(matrix, num_jobs);
+    print_schedule(&sched, &data); // DEBUG
 
     return 0;
 }
