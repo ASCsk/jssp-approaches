@@ -263,7 +263,7 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
 
         int best_sequence[num_ops];
         
-        int makespan = solve_single_machine_subproblem_bf(nodes, ops_on_machine, num_ops, best_sequence);
+        int makespan = solve_single_machine_subproblem_naive(nodes, ops_on_machine, num_ops, best_sequence);
         printf("Best sequence makespan on machine %d: %d\n", bottleneck, makespan);
 
         validate_best_sequence(best_sequence, num_ops, num_operations); // DEBUG
@@ -304,7 +304,10 @@ int main() {
     // print_jssp_data(&data); // DEBUG
 
     Schedule sched;
+
     compute_shifting_bottleneck(&data, &sched);
+
+    validate_schedule(&sched, &data);
 
     print_schedule(&sched, &data); // DEBUG
 

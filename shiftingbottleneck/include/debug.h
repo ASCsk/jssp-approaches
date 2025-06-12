@@ -17,5 +17,6 @@ void print_disjunctive_candidates(const GraphData* data);
 void print_ops_subset(const OperationNode* ops_subset, int num_ops);
 void validate_best_sequence(const int* best_sequence, int num_ops, int total_ops);
 void print_machine_sequence(int machine_id, const int* best_sequence, int num_ops);
+void validate_schedule(Schedule* sched, JSSPData* data);
 
 #endif

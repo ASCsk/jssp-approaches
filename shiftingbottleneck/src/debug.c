@@ -185,3 +185,58 @@ void print_machine_sequence(int machine_id, const int* best_sequence, int num_op
     }
     printf("\n");
 }
+
+void validate_schedule(Schedule* sched, JSSPData* data) {
+    // 1. Check precedence constraints within each job
+    for (int j = 0; j < data->num_jobs; j++) {
+        for (int o = 1; o < data->num_machines; o++) {
+            int prev_end = sched->end_time[j][o - 1];
+            int curr_start = sched->start_time[j][o];
+            if (curr_start < prev_end) {
+                printf("Precedence violation in Job %d: Op %d starts at %d before Op %d ends at %d\n",
+                    j, o, curr_start, o - 1, prev_end);
+                exit(1);
+            }
+        }
+    }
+
+    // 2. Check for machine conflicts
+    for (int m = 0; m < data->num_machines; m++) {
+        // Collect all tasks that run on machine m
+        int op_count = 0;
+        struct {
+            int start;
+            int end;
+            int job;
+            int op;
+        } ops[MAX_JOBS];
+
+        for (int j = 0; j < data->num_jobs; j++) {
+            for (int o = 0; o < data->num_machines; o++) {
+                Task t = data->operations[j][o];
+                if (t.machine == m) {
+                    ops[op_count].start = sched->start_time[j][o];
+                    ops[op_count].end = sched->end_time[j][o];
+                    ops[op_count].job = j;
+                    ops[op_count].op = o;
+                    op_count++;
+                }
+            }
+        }
+
+        // Check for overlaps (naive O(n^2))
+        for (int i = 0; i < op_count; i++) {
+            for (int j = i + 1; j < op_count; j++) {
+                if (!(ops[i].end <= ops[j].start || ops[j].end <= ops[i].start)) {
+                    printf("Machine conflict on Machine %d:\n", m);
+                    printf("  Job %d Op %d [%d, %d] overlaps with Job %d Op %d [%d, %d]\n",
+                        ops[i].job, ops[i].op, ops[i].start, ops[i].end,
+                        ops[j].job, ops[j].op, ops[j].start, ops[j].end);
+                    exit(1);
+                }
+            }
+        }
+    }
+
+    printf("Schedule validated: no conflicts or precedence violations.\n");
+}
