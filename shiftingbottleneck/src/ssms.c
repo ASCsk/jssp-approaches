@@ -5,6 +5,23 @@
 
 #include "ssms.h"
 
+int solve_single_machine_subproblem_naive(OperationNode* nodes, int* ops_on_machine, int num_ops, int* best_sequence) {
+    // Naive sequence: preserve order of ops_on_machine
+    for (int i = 0; i < num_ops; i++) {
+        best_sequence[i] = i;
+    }
+
+    // Compute makespan using ESTs
+    int current_time = 0;
+    for (int i = 0; i < num_ops; i++) {
+        int op_index = ops_on_machine[i];
+        current_time += nodes[op_index].duration;
+    }
+
+    return current_time;
+}
+
+
 // Global pointers to track best solution during permutation
 static int* best_perm = NULL;
 static int best_makespan;
@@ -56,7 +73,7 @@ static void permute(int* arr, int start, int n) {
  * @param best_sequence Output: array of indices into global nodes for best sequence (preallocated)
  * @return best makespan found
  */
-int solve_single_machine_subproblem(OperationNode* nodes, int* ops_on_machine, int n, int* best_sequence) {
+int solve_single_machine_subproblem_bf(OperationNode* nodes, int* ops_on_machine, int n, int* best_sequence) {
     if (n == 0) return 0;
 
     int* indices = malloc(n * sizeof(int));

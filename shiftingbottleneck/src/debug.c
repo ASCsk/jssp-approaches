@@ -1,7 +1,4 @@
 #include "debug.h"
-#include "file_utils.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 int** load_and_print_jssp_matrix(const char* jss_filename, int* num_jobs, int* num_machines, int* optimum_value) {
     int** matrix = load_jssp_matrix(jss_filename, num_jobs, num_machines, optimum_value);
@@ -148,4 +145,43 @@ void print_disjunctive_candidates(const GraphData* data) {
             printf("WARNING: arcs %d and %d are not symmetric!\n", i, i + 1);
         }
     }
+}
+
+void print_ops_subset(const OperationNode* ops_subset, int num_ops) {
+    printf("ops_subset (num_ops = %d):\n", num_ops);
+    for (int i = 0; i < num_ops; ++i) {
+        printf("  [%2d] Job %d, Op %d, Machine %d, Duration %d\n",
+            i,
+            ops_subset[i].job_id,
+            ops_subset[i].op_index,
+            ops_subset[i].machine,
+            ops_subset[i].duration
+        );
+    }
+}
+
+void validate_best_sequence(const int* best_sequence, int num_ops, int total_ops) {
+    bool seen[MAX_OPERATIONS] = { false };
+    for (int i = 0; i < num_ops; i++) {
+        int idx = best_sequence[i];
+        if (idx < 0 || idx >= total_ops) {
+            printf("Invalid index %d in best_sequence at pos %d (total_ops = %d)\n", idx, i, total_ops);
+            exit(1);
+        }
+        if (seen[idx]) {
+            printf("Duplicate value %d in best_sequence\n", idx);
+            exit(1);
+        }
+        seen[idx] = true;
+    }
+}
+
+
+void print_machine_sequence(int machine_id, const int* best_sequence, int num_ops) {
+    printf("Sequence for Machine %d: ", machine_id);
+    for (int i = 0; i < num_ops; i++) {
+        int node_idx = best_sequence[i];  // global index directly
+        printf("%d ", node_idx);
+    }
+    printf("\n");
 }

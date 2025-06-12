@@ -67,7 +67,7 @@ int** load_jssp_matrix(const char* filename, int* num_jobs, int* num_machines, i
     
         if (sscanf(line, "%d %d", num_jobs, num_machines) == 2) {
             // printf("Reading line: %s", line);
-            printf("Found matrix dimensions: %d jobs, %d machines\n", *num_jobs, *num_machines);
+            printf("Found matrix dimensions: %d, %d \n", *num_jobs, *num_machines);
             break;
         }
     }

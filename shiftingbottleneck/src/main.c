@@ -93,7 +93,7 @@ void build_disjunctive_graph(JSSPData* data, OperationNode* nodes, int num_opera
             int from = op_node_index(job, op, num_machines);
             int to = op_node_index(job, op + 1, num_machines);
 
-            // assert_valid_edge(from, to);
+            assert_valid_edge(from, to);
             // from -> to
             add_successor_unique(&nodes[from], to);
             add_predecessor_unique(&nodes[to], from);
@@ -149,11 +149,12 @@ void orient_disjunctive_arcs(OperationNode* nodes,
     int* ops_on_machine,
     int num_ops,
     int* best_sequence) {
-    for (int i = 0; i < num_ops - 1; i++) {
-        int from = ops_on_machine[best_sequence[i]];
-        int to = ops_on_machine[best_sequence[i + 1]];
 
-        // assert_valid_edge(from, to);
+    for (int i = 0; i < num_ops - 1; i++) {
+        int from = best_sequence[i];     
+        int to = best_sequence[i + 1];   
+
+        assert_valid_edge(from, to);
 
         add_successor_unique(&nodes[from], to);
         add_predecessor_unique(&nodes[to], from);
@@ -258,10 +259,16 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
             ops_subset[i] = nodes[ops_on_machine[i]];
         }
 
-        int best_sequence[num_ops];
+        print_ops_subset(ops_subset, num_ops); // DEBUG
 
-        int makespan = solve_single_machine_subproblem(nodes, ops_on_machine, num_ops, best_sequence);
+        int best_sequence[num_ops];
+        
+        int makespan = solve_single_machine_subproblem_bf(nodes, ops_on_machine, num_ops, best_sequence);
         printf("Best sequence makespan on machine %d: %d\n", bottleneck, makespan);
+
+        validate_best_sequence(best_sequence, num_ops, num_operations); // DEBUG
+
+        print_machine_sequence(bottleneck, best_sequence, num_ops);  // DEBUG
 
         orient_disjunctive_arcs(nodes, bottleneck, num_operations, ops_on_machine, num_ops, best_sequence);
 
