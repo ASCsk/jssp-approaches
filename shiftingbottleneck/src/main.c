@@ -31,7 +31,7 @@ int find_bottleneck_machine(JSSPData* data, bool machine_scheduled[MAX_MACHINES]
             continue;  // Skip already scheduled machines
 
         // 1. Collect all operations assigned to machine m
-        // 2. Sort or simulate to get a makespan (you can initially just sum durations as a proxy)
+        // 2. Sort or simulate to get a makespan (we can initially just sum durations as a proxy)
         // 3. Track max
         int machine_makespan = 0;
 
@@ -371,7 +371,7 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
 
         store_disjunctive_candidates(nodes, num_operations, &graph);
 
-        // print_disjunctive_candidates(&graph); // DEBUG <- correct untill here
+        // print_disjunctive_candidates(&graph); // DEBUG 
 
         int bottleneck = find_bottleneck_machine(data, machine_scheduled);
         // int bottleneck = find_bottleneck_machine_by_est(nodes, num_operations, num_machines);

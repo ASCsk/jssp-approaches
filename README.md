@@ -38,14 +38,15 @@ Represent job precedence.
 
 E.g., in Job 2: Op1 → Op2 → Op3
 
-You can’t change their order.
+We can’t change their order.
 
 Disjunctive arcs:
 Represent machine exclusivity.
 
 If machine M3 is used by Job 1 Op2 and Job 4 Op1, they both must be ordered, but either order is valid.
 
-So: the goal is to find the best order for the disjunctive arcs (i.e., the **ops** on machine **m**) that results in the smallest makespan. We eventually want to solve a single-machine scheduling problem with precedence constraints to compute the critical path (i.e., longest processing time path).
+So: the goal is to find the best order for the disjunctive arcs (i.e., the **ops** on machine **m**) that results in the smallest makespan.  
+We eventually want to solve a single-machine scheduling problem with precedence constraints to compute the critical path (i.e., longest processing time path).
 
 ```yaml
 Job 0: [M2, M3, M1]

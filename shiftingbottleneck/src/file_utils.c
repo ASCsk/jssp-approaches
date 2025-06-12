@@ -21,6 +21,7 @@ static void extract_subdir_from_filename(const char* filename, char* subdir, siz
     }
     subdir[i] = '\0';
 }
+
 /**
  * Loads a JSSP matrix from a file.
  * The function reads the number of jobs and machines from the first line of the file,
