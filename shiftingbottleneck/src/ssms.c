@@ -73,20 +73,20 @@ static void permute(int* arr, int start, int n) {
  * @param best_sequence Output: array of indices into global nodes for best sequence (preallocated)
  * @return best makespan found
  */
-int solve_single_machine_subproblem_bf(OperationNode* nodes, int* ops_on_machine, int n, int* best_sequence) {
-    if (n == 0) return 0;
+int solve_single_machine_subproblem_bf(OperationNode* nodes, int* ops_on_machine, int num_ops, int* best_sequence) {
+    if (num_ops == 0) return 0;
 
-    int* indices = malloc(n * sizeof(int));
+    int* indices = malloc(num_ops * sizeof(int));
     if (!indices) return INT_MAX;  // Allocation failure fallback
 
     // Copy ops_on_machine into indices for permutation
-    memcpy(indices, ops_on_machine, n * sizeof(int));
+    memcpy(indices, ops_on_machine, num_ops * sizeof(int));
 
     best_perm = best_sequence;
     best_makespan = INT_MAX;
     global_nodes = nodes;
 
-    permute(indices, 0, n);
+    permute(indices, 0, num_ops);
 
     free(indices);
     return best_makespan;
