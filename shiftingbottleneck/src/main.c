@@ -84,6 +84,8 @@ void build_disjunctive_graph(JSSPData* data, OperationNode* nodes, int num_opera
 
             nodes[idx].earliest_start = 0;
             nodes[idx].latest_finish = 0;
+
+            // printf("%d\t%d\t%d\t%d\t\t%d\n", job, op, t.machine, t.duration, idx); //DEBUG <- all goo so far
         }
     }
 
@@ -99,6 +101,18 @@ void build_disjunctive_graph(JSSPData* data, OperationNode* nodes, int num_opera
             add_predecessor_unique(&nodes[to], from);
         }
     }
+
+    // printf("ID\tJob\tOp\tM\tDur\tPreds\tSuccs\n"); //DEBUG <- all goo so far
+    // for (int i = 0; i < num_operations; ++i) {
+    //     printf("%d\t%d\t%d\t%d\t%d\t", i,
+    //         nodes[i].job_id, nodes[i].op_index,
+    //         nodes[i].machine, nodes[i].duration);
+    //     printf("P[");
+    //     for (int p = 0; p < nodes[i].num_predecessors; ++p) printf("%d ", nodes[i].predecessors[p]);
+    //     printf("] S[");
+    //     for (int s = 0; s < nodes[i].num_successors; ++s) printf("%d ", nodes[i].successors[s]);
+    //     printf("]\n");
+    // }
 
 }
 
@@ -143,6 +157,53 @@ int count_operations_on_bottleneck_machine(OperationNode* nodes, int num_operati
     return count;
 }
 
+void add_disjunctive_arc(GraphData* graph, int from, int to) {
+    if (graph->num_arcs >= MAX_DISJ_ARCS) {
+        // Optional: handle overflow
+        return;
+    }
+
+    graph->arcs[graph->num_arcs].from = from;
+    graph->arcs[graph->num_arcs].to = to;
+    graph->num_arcs++;
+}
+
+void store_disjunctive_candidates(OperationNode* nodes, int total_operations, GraphData* data) {
+    static int machine_buckets[MAX_MACHINES][MAX_OPS_PER_MACHINE];
+    static int bucket_sizes[MAX_MACHINES];
+    // Reset bucket sizes
+    for (int m = 0; m < MAX_MACHINES; m++) {
+        bucket_sizes[m] = 0;
+    }
+
+    // Fill machine buckets
+    for (int i = 0; i < total_operations; i++) {
+        int machine = nodes[i].machine;
+        int index = bucket_sizes[machine]++;
+        machine_buckets[machine][index] = i;
+    }
+
+    // Store disjunctive arcs for each machine
+    for (int m = 0; m < MAX_MACHINES; m++) {
+        int size = bucket_sizes[m];
+
+        for (int i = 0; i < size - 1; i++) {
+            for (int j = i + 1; j < size; j++) {
+                int op_i = machine_buckets[m][i];
+                int op_j = machine_buckets[m][j];
+
+                add_disjunctive_arc(data, op_i, op_j);
+                add_disjunctive_arc(data, op_j, op_i);
+            }
+        }
+
+        if (data->num_arcs >= MAX_DISJ_ARCS) {
+            printf("Warning: graph arcs overflow!\n");
+            return;
+        }
+    }
+}
+
 void orient_disjunctive_arcs(OperationNode* nodes,
     int machine_id,
     int num_operations,
@@ -151,8 +212,14 @@ void orient_disjunctive_arcs(OperationNode* nodes,
     int* best_sequence) {
 
     for (int i = 0; i < num_ops - 1; i++) {
-        int from = best_sequence[i];     
-        int to = best_sequence[i + 1];   
+        int from = ops_on_machine[best_sequence[i]];
+        int to = ops_on_machine[best_sequence[i + 1]];
+
+        printf("best_sequence: ");
+        for (int i = 0; i < num_ops; ++i) printf("%d ", best_sequence[i]);
+        printf("\nops_on_machine: ");
+        for (int i = 0; i < num_ops; ++i) printf("%d ", ops_on_machine[i]);
+        printf("\n");
 
         assert_valid_edge(from, to);
 
@@ -236,10 +303,11 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
     int num_operations = num_jobs * num_machines;
 
     OperationNode nodes[MAX_OPERATIONS];
+    
     bool machine_scheduled[MAX_MACHINES] = { false };
     build_disjunctive_graph(data, nodes, num_operations);
 
-    // print_disjunctive_graph(nodes, num_operations); // DEBUG
+    print_disjunctive_graph(nodes, num_operations); // DEBUG
 
     for (int scheduled = 0; scheduled < num_machines; scheduled++) {
         static GraphData graph = { .num_arcs = 0 };
@@ -256,21 +324,34 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
             continue;
         }
 
-        OperationNode ops_subset[num_ops];
-        for (int i = 0; i < num_ops; i++) {
-            ops_subset[i] = nodes[ops_on_machine[i]];
-        }
+        store_disjunctive_candidates(nodes, num_operations, &graph);
 
-        // print_ops_subset(ops_subset, num_ops); // DEBUG
+        // print_disjunctive_candidates(&graph); // DEBUG
 
         int best_sequence[num_ops];
         
         int makespan = solve_single_machine_subproblem_bf(nodes, ops_on_machine, num_ops, best_sequence);
+
+        printf("Best sequence indices (local to ops_on_machine): ");
+        for (int i = 0; i < num_ops; ++i) {
+            printf("%d ", best_sequence[i]);
+        }
+        printf("\n");
+
+        // To print the corresponding global node indices:
+        printf("Best sequence (global node indices): ");
+        for (int i = 0; i < num_ops; ++i) {
+            printf("%d ", ops_on_machine[best_sequence[i]]);
+        }
+        printf("\n");
+        
         printf("Best sequence makespan on machine %d: %d\n", bottleneck_machine, makespan);
 
         validate_best_sequence(best_sequence, num_ops, num_operations); // DEBUG
 
-        print_machine_sequence(bottleneck_machine, best_sequence, num_ops);  // DEBUG
+        // print_machine_sequence(bottleneck_machine, best_sequence, num_ops);  // DEBUG
+
+        // print_disjunctive_graph(nodes, num_operations); // DEBUG
 
         orient_disjunctive_arcs(nodes, bottleneck_machine, num_operations, ops_on_machine, num_ops, best_sequence);
 
@@ -278,10 +359,10 @@ void compute_shifting_bottleneck(JSSPData* data, Schedule* sched) {
 
         compute_earliest_start_times(nodes, num_operations);
 
-        for (int i = 0; i < num_operations; i++) {
-            printf("Op %2d (J%d, M%d): EST = %d\n",
-                i, nodes[i].job_id, nodes[i].machine, nodes[i].earliest_start);
-        }
+        // for (int i = 0; i < num_operations; i++) {
+        //     printf("Op %2d (J%d, M%d): EST = %d\n",
+        //         i, nodes[i].job_id, nodes[i].machine, nodes[i].earliest_start);
+        // }
 
     }
 
@@ -307,11 +388,13 @@ int main() {
 
     Schedule sched;
 
+    // print_schedule(&sched, &data); // DEBUG
+
     compute_shifting_bottleneck(&data, &sched);
 
-    validate_schedule(&sched, &data);
+    //validate_schedule(&sched, &data);
 
-    print_schedule(&sched, &data); // DEBUG
+    print_compact_schedule(&sched, &data);
 
     return 0;
 }

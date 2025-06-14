@@ -42,13 +42,6 @@ typedef struct {
     int latest_finish;
 } OperationNode;
 
-// This way we have a list of MachineOps (length = num_machines) where each entry contains the indices of operations that run on that machine.
-typedef struct {
-    int machine_id;
-    int op_indices[MAX_OPERATIONS];  // Indices into OperationNode[]
-    int num_ops;
-} MachineOps;
-
 typedef struct {
     struct {
         int from;
@@ -56,6 +49,13 @@ typedef struct {
     } arcs[MAX_DISJ_ARCS];
     int num_arcs;
 } GraphData;
+
+// // This way we have a list of MachineOps (length = num_machines) where each entry contains the indices of operations that run on that machine.
+// typedef struct {
+//     int machine_id;
+//     int op_indices[MAX_OPERATIONS];  // Indices into OperationNode[]
+//     int num_ops;
+// } MachineOps;
 
 // Function prototypes (soon)
 

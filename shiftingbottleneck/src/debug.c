@@ -109,14 +109,14 @@ void print_disjunctive_graph(OperationNode* nodes, int num_operations) {
 
     for (int i = 0; i < num_operations; ++i) {
         OperationNode* node = &nodes[i];
-        printf("Op %2d (Job %d, Op %d, Machine %d, Dur %2d):\n",
+        printf("Task %2d (Job %d, Op %d, Machine %d, Dur %2d):",
             i, node->job_id, node->op_index, node->machine, node->duration);
 
         printf("  Predecessors (%d): ", node->num_predecessors);
         for (int j = 0; j < node->num_predecessors; ++j) {
             printf("%d ", node->predecessors[j]);
         }
-        printf("\n");
+
 
         printf("  Successors (%d):   ", node->num_successors);
         for (int j = 0; j < node->num_successors; ++j) {
@@ -239,4 +239,33 @@ void validate_schedule(Schedule* sched, JSSPData* data) {
     }
 
     printf("Schedule validated: no conflicts or precedence violations.\n");
+}
+
+void print_compact_schedule(const Schedule* sched, const JSSPData* data) {
+    // 1. Print makespan
+    int makespan = 0;
+    for (int i = 0; i < data->num_jobs; ++i) {
+        for (int j = 0; j < data->num_machines; ++j) {
+            if (sched->end_time[i][j] > makespan) {
+                makespan = sched->end_time[i][j];
+            }
+        }
+    }
+    printf("%d\n", makespan);
+
+    // 2. Print start times matrix
+    for (int i = 0; i < data->num_jobs; ++i) {
+        for (int j = 0; j < data->num_machines; ++j) {
+            printf("%2d ", sched->start_time[i][j]);
+        }
+        printf("\n");
+    }
+
+    // 3. Print end times matrix
+    for (int i = 0; i < data->num_jobs; ++i) {
+        for (int j = 0; j < data->num_machines; ++j) {
+            printf("%2d ", sched->end_time[i][j]);
+        }
+        printf("\n");
+    }
 }

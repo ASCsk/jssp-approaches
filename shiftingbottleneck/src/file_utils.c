@@ -145,4 +145,3 @@ int read_optimum_file(const char* path, const char* target_filename, int* optimu
     fclose(file);
     return -1;  // Not found
 }
-

@@ -19,6 +19,15 @@ Suppose MAX_JOBS = 3 and MAX_MACHINES = 3 for simplicity:
     - Job 1: [1][0], [1][1], [1][2] → indices 3, 4, 5
 
 ### Conjunctive Edges for Each Job
+#### What is a conjunctive arc?
+Definition:  
+A conjunctive arc says:  
+“This operation must come before another because they belong to the same job.”
+
+#### What is a disjunctive arc?
+Definition:  
+A disjunctive arc says:  
+“These two operations must not overlap because they use the same machine, but their order is not known yet.”
 
 Job 0:  
 [0][0] ---> [0][1] ---> [0][2]  
